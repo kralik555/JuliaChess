@@ -2,113 +2,12 @@ using Chess
 using Chess.PGN
 using JLD2
 using Glob
+using SparseArrays
+using Serialization
 include("board_class.jl")
 
 
-function save_positions(file_path::String, num_games::Integer)
-    games_data = []
-    game_count = 0
-    for game in gamesinfile(file_path)
-        game_count += 1
-	println(game_count)
-	if game_count == num_games
-            break
-        end
-        
-        board = startboard()
-
-	res = game.headers.:result
-	result = res == "1-0" ? 1 : res == "0-1" ? -1 : 0
-        
-    for m in game.:history
-		if typeof(m.move) == Nothing || isterminal(game)
-			break
-	    end
-	    tensor = create_input_tensors(board)
-	    move = tostring(m.move)
-        move_uint16 = encode_move(move)
-        push!(games_data, (tensor, move_uint16, result))
-        domove!(board, m.move)
-        end
-    end
-    
-    existing_files = glob("data/arrays/games_data_*.jld2")
-    file_num = length(existing_files) + 1
-    println("Existing files: ", file_num - 1)
-    save_path = "data/arrays/games_data_$(file_num).jld2"
-
-    @save save_path data=games_data
-    
-    return games_data
-end
-
-function get_elo(tags, key)
-    for tag in tags
-        if tag.name == key
-		if tag.value == "?"
-			return 0
-		end
-		return parse(Int, tag.value)
-        end
-    end
-    return 0
-end
-
-function save_high_rating_positions(file_path::String, num_games::Integer)
-	games_data = []
-	game_count = 0
-    	for game in gamesinfile(file_path)
-        	white_rating = get_elo(game.headers.othertags, "WhiteElo")
-			black_rating = get_elo(game.headers.othertags, "BlackElo")	
-		# Skip the game if either player's rating is below 2000
-        	if white_rating < 2300 || black_rating < 2300
-            		continue
-        	end	
-        	game_count += 1
-		println(game_count)
-		if game_count == num_games
-            	break
-        	end
-        
-        	board = startboard()
-
-		res = game.headers.:result
-		result = res == "1-0" ? 1 : res == "0-1" ? -1 : 0
-        
-        	for m in game.:history
-			if typeof(m.move) == Nothing || isterminal(game)
-					break
-	    		end
-	    		tensor = create_input_tensors(board)
-	    		move = tostring(m.move)
-            	move_uint16 = encode_move(move)
-            	push!(games_data, (tensor, move_uint16, result))
-				domove!(board, m.move)
-        	end
-		if game_count == 10000
-			break	
-		end	
-	end
-    
-    existing_files = glob("data/arrays/games_data_*.jld2")
-    file_num = length(existing_files) + 1
-    println("Existing files: ", file_num - 1)
-    save_path = "data/arrays/games_data_$(file_num).jld2"
-
-    @save save_path data=games_data
-    
-    return games_data
-
-end
-
-
-function load_data(file_path::String)
-	@load file_path data
-	return data
-end
-
-
-function most_common_positions(file_path::String, save_path::String, move_depth::Int=8)
+function most_common_positions(file_path::String, save_path::String, move_depth::Int=8, max_searched::Int=100000)
     position_counter = Dict{String, Int}()
     games_played = 0 
 	for game in gamesinfile(file_path)
@@ -131,7 +30,7 @@ function most_common_positions(file_path::String, save_path::String, move_depth:
 			position_counter[fen(board)] = get!(position_counter, fen(board), 0) + 1	
 			println(fen(board))
 		end
-		if games_played == 100000
+		if games_played == max_searched
 			break
 		end
 	end
@@ -148,7 +47,93 @@ function most_common_positions(file_path::String, save_path::String, move_depth:
 end
 
 
+function get_positions_with_move_distributions(file_path::String, save_path::String, num_games::Int64)
+	# dict is fen => array(4096) for move distribution, number of visits, value (wins - losses)
+	pos_dict = Dict{String, Tuple{SparseVector{Int, Int}, Int, Int}}()
+	games_count = 0
+	for game in gamesinfile(file_path)
+		games_count += 1
+		if games_count == num_games
+			break
+		end
+
+		if games_count % 1000 == 0
+			println(games_count)
+		end
+
+		if games_count % 10_000 == 0
+			dict_keys = collect(keys(pos_dict))
+			for key in dict_keys
+				if pos_dict[key][2] == 1
+					delete!(pos_dict, key)
+				end
+			end
+			println("After $(games_count):")
+			println(length(pos_dict))
+
+		end
+		if games_count % 100_000 == 0
+			dict_keys = collect(keys(pos_dict))
+			for key in dict_keys
+				if pos_dict[key][2] < 3
+					delete!(pos_dict, key)
+				end
+			end
+		end
+		if games_count % 1_000_000 == 0
+			dict_keys = collect(keys(pos_dict))
+			for key in dict_keys
+				if pos_dict[key][2] < 4
+					delete!(pos_dict, key)
+				end
+			end
+		end
+
+		board = startboard()
+
+		res = game.headers.:result
+		result = res == "1-0" ? 1 : res == "0-1" ? -1 : 0
+		
+		move_count = 0
+		for m in game.:history
+			if typeof(m.move) == Nothing || isterminal(game)
+				break
+			end
+			if move_count == 40
+				break
+			end
+			move = tostring(m.move)
+			move_int = encode_move(move)
+			
+			f = fen(board)
+			if !(f in keys(pos_dict))
+				pos_dict[f] = (spzeros(Int, 4096), 0, 0)
+			end
+			
+			current_data = pos_dict[f]
+			new_data = (current_data[1], current_data[2] + 1, current_data[3] + result)
+			new_data[1][move_int] += 1
+			pos_dict[f] = new_data
+
+			domove!(board, m.move)
+			move_count += 1
+		end
+	end
+	
+	chunk_size = 50 * 128
+	dict_keys = collect(keys(pos_dict))
+	num_chunks = ceil(Int, length(dict_keys) / chunk_size)
+
+	for i in 1:num_chunks
+		chunk_keys = dict_keys[((i-1)*chunk_size + 1):min(i*chunk_size, end)]
+		chunk = Dict(key => pos_dict[key] for key in chunk_keys)
+		serialize("$(save_path)chunk_$i.bin", chunk)
+	end
+
+end
+
+
 if abspath(PROGRAM_FILE) == @__FILE__
-	save_high_rating_positions("data/files/data_2016_02.pgn", 10000)	
-	#most_common_positions("data/files/data_2016_02.pgn", "data/common_games.txt")
+	pos_dic = get_positions_with_move_distributions("../data/files/data_2016_02.pgn", "../data/move_distros/", 50_001)
+	#println(pos_dic["rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -"])
 end

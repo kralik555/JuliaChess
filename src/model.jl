@@ -63,8 +63,9 @@ function ChessNet(conv_layers::Int, conv_neurons::Int)
     
     # Convolutional layers
     for _ = 1:conv_layers-1
-	push!(layers, Conv((3, 3), conv_neurons=>conv_neurons, pad=(1,1), stride=(1,1)))
-	push!(layers, relu)
+		push!(layers, Conv((3, 3), conv_neurons=>conv_neurons, pad=(1,1), stride=(1,1)))
+		push!(layers, relu)
+		push!(layers, BatchNorm(conv_neurons, relu))	
     end
     
     # Flatten layer

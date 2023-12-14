@@ -103,7 +103,7 @@ function search(tree::MCTS)
 			policy = policy ./ sum(policy) 
 			expand(node, policy)
 		end
-		backpropagate(node, -value[1, 1])
+		backpropagate(node, value[1, 1])
 	end
 	action_probs = zeros(Float64, 4096)
 	for child in root.children

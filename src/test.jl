@@ -4,34 +4,28 @@ using JLD2
 include("board_class.jl")
 include("model.jl")
 include("mcts.jl")
+include("moves.jl")
 
-function model_move(board, model)
-    # Convert the board to a tensor representation suitable for your model
-	tensor = board_to_tensor(board)
-	moves, value = model.model(tensor)
-	valid_moves = get_valid_moves(board)                           
-    moves = vec(moves)                                                
-    moves = moves .* valid_moves                                      
-    moves = moves ./ sum(moves)                                      
+function test_models(model1::ChessNet, model2::ChessNet, positions_file::String)
+	model1_wins = 0
+	model2_wins = 0
+	draws = 0
 
-    # Choose the move with the highest probability
-    best_move_index = argmax(moves[:])
-	println(moves)
-	return best_move_index
+	# for each position in positions_file play a game
+	# store result
+
+	return (model1_wins, draws, model2_wins)
 end
 
-function tree_move(model, board, args)
-	tree = MCTS(board, args, model)
-	move_probs = search(tree)
-	move = argmax(move_probs)
-	return move
-end
-
-function play_game(model)
-    board = startboard()
+function play_game(model::ChessNet, starting_position::String, args::Dict{String, Int64})
+    if starting_position == ""
+		board = startboard()
+	else 
+		board = fromfen(starting_position)
+	end
 
     while !isterminal(board)
-        #move = model_move(board, model)
+		#move = model_move(model, board)
 		move = tree_move(model, board, args)
 		move = int_to_move(Int(only(move)))
 		println(move)
@@ -47,13 +41,13 @@ function play_game(model)
 	    retuls = 1
     end
     println("Result of the game: ", result)
+	return result
 end
 
 
 
 if abspath(PROGRAM_FILE) == @__FILE__
-	JLD2.@load "models/model_high_rating.jld2" model
-	print_model_details(model)
+	JLD2.@load "../models/supervised_model.jld2" model
 	args = Dict("C" => 2, "num_searches" => 100)
-	play_game(model)
+	play_game(model, "", args)
 end

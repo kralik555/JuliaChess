@@ -104,7 +104,7 @@ end
 
 function board_to_tensor(board::Board)
 	tensor = create_input_tensors(board)
-    tensor = Float32.(tensor)                                               
+    tensor = Float32.(tensor)
     tensor = reshape(tensor, 1, 18, 8, 8)                                   
 	tensor = permutedims(tensor, (3, 4, 2, 1))
 	return tensor
