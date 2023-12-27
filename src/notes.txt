@@ -1,1 +1,7 @@
 learning rate warm up
+
+# https://www.gm.th-koeln.de/ciopwebpub/Kone15c.d/TR-TDgame_EN.pdf
+# for changing the game values at each state
+
+piece sprites
+https://commons.wikimedia.org/wiki/Category:SVG_chess_pieces

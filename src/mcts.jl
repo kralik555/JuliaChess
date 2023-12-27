@@ -4,7 +4,7 @@ include("board_class.jl")
 
 
 mutable struct Node
-	board::Board
+	game::SimpleGame
 	args::Dict
 	parent::Union{Node, Nothing}
 	action_taken::Union{Int, Nothing}
@@ -13,8 +13,8 @@ mutable struct Node
 	visit_count::Integer
 	value_sum::Float32
 
-	Node(board, args, parent=nothing, action_taken=nothing, prior=0.0) = 
-	new(board, args, parent, action_taken, prior, [], 0, 0.0)
+	Node(game, args, parent=nothing, action_taken=nothing, prior=0.0) = 
+	new(game, args, parent, action_taken, prior, [], 0, 0.0)
 end
 
 
@@ -55,15 +55,16 @@ function expand(node::Node, policy)
 		prob = policy[move_idx]
 		if prob > 0
 			move = int_to_move(move_idx)
-			child_state = domove(node.board, move)
-			child = Node(child_state, node.args, node, move_idx, prob)
+            child_state = deepcopy(node.game)
+			domove!(child_state, move)
+            child = Node(child_state, node.args, node, move_idx, prob)
 			push!(node.children, child)
 		end
 	end
 end
 
 
-function backpropagate(node::Node, value::Float32)
+function backpropagate(node::Node, value::Union{Float32, Int64})
 	node.value_sum = node.value_sum + value
 	node.visit_count = node.visit_count + 1
 	value = -value
@@ -74,19 +75,19 @@ end
 
 
 mutable struct MCTS
-	board::Board
+	game::SimpleGame
 	args::Dict
-	model
+	model::ChessNet
 end
 
 
-function MCTS(board, args, model)
-	return MCTS(board, args, model)
+function MCTS(game, args, model)
+	return MCTS(game, args, model)
 end
 
 
 function search(tree::MCTS)
-	root = Node(tree.board, tree.args)
+	root = Node(tree.game, tree.args)
 	
 	for search in 1:tree.args["num_searches"]
 		node = root
@@ -95,13 +96,18 @@ function search(tree::MCTS)
 			node = select(node)
 		end
 
-		if !(isterminal(node.board))
-			policy, value = model.model(board_to_tensor(node.board))
-			valid_moves = get_valid_moves(node.board)
+		if !(isterminal(node.game.board))
+			policy, value = model.model(board_to_tensor(node.game.board))
+			valid_moves = get_valid_moves(node.game.board)
 			policy = vec(policy)
 			policy = policy .* valid_moves
 			policy = policy ./ sum(policy) 
 			expand(node, policy)
+		else
+			value = get_game_over_and_value(node.game.board)[2]
+			if sidetomove(node.game.board) == Chess.WHITE
+				value *= -1
+			end
 		end
 		backpropagate(node, value[1, 1])
 	end

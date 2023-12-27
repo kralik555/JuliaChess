@@ -35,25 +35,6 @@ function combined_heads_function(x)
 end
 
 
-function print_layer_details(layer)
-    if isa(layer, Dense)
-        println("Dense layer with input size: ", size(layer.weight, 2), " and output size: ", size(layer.weight, 1))
-    elseif isa(layer, Conv)
-        println("Conv layer with input channels: ", size(layer.weight, 3), ", output channels: ", size(layer.weight, 4), ", kernel size: ", size(layer.weight, 1), "x", size(layer.weight, 2))
-    elseif isa(layer, Chain)
-        for sublayer in layer.layers
-            print_layer_details(sublayer)
-        end
-    end
-end
-
-function print_model_details(model::ChessNet)
-    for layer in model.model.layers
-        print_layer_details(layer)
-    end
-end
-
-
 function ChessNet(conv_layers::Int, conv_neurons::Int)
     layers = []
     
@@ -64,8 +45,8 @@ function ChessNet(conv_layers::Int, conv_neurons::Int)
     # Convolutional layers
     for _ = 1:conv_layers-1
 		push!(layers, Conv((3, 3), conv_neurons=>conv_neurons, pad=(1,1), stride=(1,1)))
+		push!(layers, BatchNorm(conv_neurons))
 		push!(layers, relu)
-		push!(layers, BatchNorm(conv_neurons, relu))	
     end
     
     # Flatten layer

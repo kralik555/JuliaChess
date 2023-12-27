@@ -1,5 +1,6 @@
 using Chess
 using Flux
+import Chess
 
 
 function create_input_tensors(board::Board)
@@ -57,13 +58,22 @@ end
 
 
 function get_game_over_and_value(board::Board)
-    if is_checkmate(board)
-        return (true, board.turn == :white ? -1 : 1)
-    elseif is_stalemate(board) || is_insufficient_material(board) || is_fifty_moves(board) || is_threefold_repetition(board)
-        return (true, 0)
-    else
-        return (false, 0)
+	if isterminal(board)
+		if ischeckmate(board)
+			return (true, board.turn == :white ? -1 : 1)
+		else
+			return (true, 0)
+		end
     end
+	return (false, 0)
+end
+
+
+function game_over(game::SimpleGame)
+    if isterminal(game)
+        return true
+    end
+    return false
 end
 
 

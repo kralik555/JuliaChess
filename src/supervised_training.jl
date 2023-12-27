@@ -35,34 +35,39 @@ function train_batch(model::ChessNet, tensors, move_distros, game_values)
 end
 
 
-function train_on_dict(model::ChessNet, file_path::String)
-	files = readdir(file_path)
-	num_chunks = size(files)[1]
-	for i in 1:num_chunks
-		tensors = []
-		move_distros = []
-		game_values = []
-		chunk = deserialize("$(file_path)chunk_$i.bin")
-		k = collect(keys(chunk))
-		for key in k
-			board = fromfen(key)
-			tensor = create_input_tensors(board)
-			move_distr = Vector(chunk[key][1])
-			value = chunk[key][3] / chunk[key][2]
-			push!(tensors, tensor)
-			push!(move_distros, reshape(move_distr, 1, :))
-			push!(game_values, value)
+function train_on_dict(model::ChessNet, file_path::String, num_epochs::Int)
+	for epoch in 1:num_epochs
+		println("Epoch ", epoch)
+		files = readdir(file_path)
+		num_chunks = size(files)[1]
+		for i in 1:num_chunks
+			println("Chunk ", i)
+			tensors = []
+			move_distros = []
+			game_values = []
+			chunk = deserialize("$(file_path)chunk_$i.bin")
+			k = collect(keys(chunk))
+			for key in k
+				board = fromfen(key)
+				tensor = create_input_tensors(board)
+				move_distr = Vector(chunk[key][1])
+				value = chunk[key][3] / chunk[key][2]
+				push!(tensors, tensor)
+				push!(move_distros, reshape(move_distr, 1, :))
+				push!(game_values, value)
+			end
+			tensors = permutedims(cat(tensors..., dims=4), (2, 3, 1, 4))
+			move_distros = vcat(move_distros...)
+			println("Got to training!")
+			model = train_batch(model, tensors, move_distros, game_values)
 		end
-		tensors = permutedims(cat(tensors..., dims=4), (2, 3, 1, 4))
-		move_distros = vcat(move_distros...)
-		model = train_batch(model, tensors, move_distros, game_values)
-	end
 
-    model_save_path = "../models/supervised_model.jld2"
-	JLD2.@save model_save_path model                                            
+		model_save_path = "../models/supervised_model_$(epoch).jld2"
+		JLD2.@save model_save_path model                                            
+	end
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__
-	net = ChessNet(8, 64)
-	train_on_dict(net, "../data/move_distros/")
+	net = ChessNet(8, 128)
+	train_on_dict(net, "../data/move_distros/", 3)
 end

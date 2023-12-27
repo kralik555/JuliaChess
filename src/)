@@ -16,14 +16,11 @@ function training_self_game(model::ChessNet, starting_position::String, args::Di
     arr = Vector{Tuple{String, Vector{Float64}, Float64}}()
     while !(isterminal(game))
         (probs, move) = tree_move_with_distro(model, game, args)
-        _, value = model.model(board_to_tensor(game.board))
+        push!(distros, probs)
 		move = int_to_move(Int(only(move)))
         println(tostring(move))
-        push!(arr, (fen(game.board), probs, value))
         domove!(game, move)
 	end
-    res = game.headers.:result
-    result = res == "1-0" ? 1 : res == "0-1" ? -1 : 0
     
     return arr, result
 end
@@ -86,7 +83,7 @@ function self_play(model::ChessNet, arguments::Dict{String, Int}, positions_file
     end
     # change dict
     # train model on dict
-    model = train_model(model, pos_dict)
+    model = train_model(mode, pos_dict)
     return model
 end
 

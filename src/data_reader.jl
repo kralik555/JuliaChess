@@ -1,7 +1,5 @@
 using Chess
 using Chess.PGN
-using JLD2
-using Glob
 using SparseArrays
 using Serialization
 include("board_class.jl")
@@ -49,6 +47,7 @@ end
 
 function get_positions_with_move_distributions(file_path::String, save_path::String, num_games::Int64)
 	# dict is fen => array(4096) for move distribution, number of visits, value (wins - losses)
+	file_number = 1
 	pos_dict = Dict{String, Tuple{SparseVector{Int, Int}, Int, Int}}()
 	games_count = 0
 	for game in gamesinfile(file_path)
@@ -80,14 +79,18 @@ function get_positions_with_move_distributions(file_path::String, save_path::Str
 				end
 			end
 		end
-		if games_count % 1_000_000 == 0
+		if games_count % 500_000 == 0
+			chunk_size = 50 * 128
 			dict_keys = collect(keys(pos_dict))
-			for key in dict_keys
-				if pos_dict[key][2] < 4
-					delete!(pos_dict, key)
-				end
+			num_chunks = ceil(Int, length(dict_keys) / chunk_size)
+			for i in 1:num_chunks
+				chunk_keys = dict_keys[((i-1)*chunk_size + 1):min(i*chunk_size, end)]
+				chunk = Dict(key => pos_dict[key] for key in chunk_keys)
+				serialize("$(save_path)chunk_$(file_number).bin", pos_dict)
+            	file_number += 1
 			end
-		end
+			pos_dict = Dict{String, Tuple{SparseVector{Int, Int}, Int, Int}}()
+		end	
 
 		board = startboard()
 
@@ -119,21 +122,18 @@ function get_positions_with_move_distributions(file_path::String, save_path::Str
 			move_count += 1
 		end
 	end
-	
-	chunk_size = 50 * 128
-	dict_keys = collect(keys(pos_dict))
-	num_chunks = ceil(Int, length(dict_keys) / chunk_size)
-
-	for i in 1:num_chunks
-		chunk_keys = dict_keys[((i-1)*chunk_size + 1):min(i*chunk_size, end)]
-		chunk = Dict(key => pos_dict[key] for key in chunk_keys)
-		serialize("$(save_path)chunk_$i.bin", chunk)
-	end
-
 end
 
+function load_most_common(path::String)
+    positions = Vector{String}()
+    open(path, "r") do file
+        for line in eachline(file)
+            push!(positions, line)
+        end
+    end
+    return positions
+end
 
 if abspath(PROGRAM_FILE) == @__FILE__
-	pos_dic = get_positions_with_move_distributions("../data/files/data_2016_02.pgn", "../data/move_distros/", 50_001)
-	#println(pos_dic["rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -"])
+	pos_dic = get_positions_with_move_distributions("../data/files/data_2016_02.pgn", "../data/move_distros/", 5_000_001)
 end
