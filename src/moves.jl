@@ -19,16 +19,31 @@ function model_move(model, board)
 	return best_move_index
 end
 
-function tree_move(model::ChessNet, game::SimpleGame, args::Dict{String, Int})
+function tree_move(model::ChessNet, game::SimpleGame, args::Dict{String, Float64})
 	tree = MCTS(game, args, model)
 	move_probs = search(tree)
 	move = argmax(move_probs)
 	return move
 end
 
-function tree_move_with_distro(model::ChessNet, game::SimpleGame, args::Dict{String, Int})
+function tree_move_with_distro(model::ChessNet, game::SimpleGame, args::Dict{String, Float64})
     tree = MCTS(game, args, model)
     move_probs = search(tree)
     move = argmax(move_probs)
     return (move_probs, move)
+end
+
+function model_move_distro(model::ChessNet, board::Board)
+    probs, _ = model.model(board_to_tensor(game.board))
+    valid_moves = get_valid_moves(game.board)
+    probs = vec(probs)
+    probs = probs .* valid_moves
+    probs = probs ./ sum(policy)
+    moves = Dict{Int, Float64}
+    for move in 1:4096
+        if probs[move] > 0
+            moves[move] = probs[move]
+        end
+    end
+    return moves
 end

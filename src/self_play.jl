@@ -28,12 +28,12 @@ function training_self_game(model::ChessNet, starting_position::String, args::Di
     return arr, result
 end
 	
-function update_dict(dict, arr::Vector{Tuple{String, Vector{Float64}, Float64}}, result::Integer)
+function update_dict(dict::Dict{String, Tuple{SparseVector{Float64}, Int, Float64}}, arr::Vector{Tuple{String, SparseVector{Float64}, Float64}}, result::Integer)
     # https://www.gm.th-koeln.de/ciopwebpub/Kone15c.d/TR-TDgame_EN.pdf
-    # for changing the game values at each state
     
     γ = 0.9
     alpha = 0.1
+    # temporal difference
     for i in 1:size(arr)[1]
         pos = size(arr)[1] - i + 1
         if pos == size(arr)
@@ -42,13 +42,15 @@ function update_dict(dict, arr::Vector{Tuple{String, Vector{Float64}, Float64}},
             delta = γ * arr[pos + 1][3] - arr[pos][3]
             arr[pos][3] += alpha * delta
         end
+    end
 
+    dict_keys = collect(key(dict))
     for entry in arr
-        if !(entry[1] in keys(dict))
+        if !(entry[1] in dict_keys)
             dict[entry[1]] = (spzeros(Int, 4096), 0, 0)
         end
         current_data = dict[entry[1]]
-        new_data = (current_data[1], current_data[2] + 1, current_data[3] + result[3])
+        new_data = Tuple{SparseVector{Float64}, Int, Float64}(current_data[1], current_data[2] + 1, current_data[3] + result)
         new_data[1][move_int] += 1
         dict[entry[1]] = new_data
     end
@@ -56,28 +58,36 @@ function update_dict(dict, arr::Vector{Tuple{String, Vector{Float64}, Float64}},
 end
 
 
-function self_play(model::ChessNet, arguments::Dict{String, Int}, positions_file::String)
-	pos_dict = Dict{String, Tuple{SparseVector{Int, Int}, Int, Int}}()
+function self_play_training(model::ChessNet, arguments::Dict{String, Float64}, positions_file::String)
+    # key = board FEN
+    # Sparse vector = move probabilities based on the tree
+    # Int = number of visits - to divide the final result by
+    # Float64 is the value of the position (first from model, then changed by the temporal difference
+	pos_dict = Dict{String, Tuple{SparseVector{Float64}, Int, Float64}}()
     # load positions from most common positions
     positions = load_most_common(positions_file)
     
     game_num = 1
 	for game_num in 1:arguments["num_games"]
+        println("Game number ", game_num)
         # play 100 games from common positions
         if game_num > 900
-            game = training_self_game(model, pos_dict, positions[game_num], arguments)
-            pos_dict =  update_dict(pos_dict, game)
+            arr, result = training_self_game(model, pos_dict, positions[game_num], arguments)
+            pos_dict =  update_dict(pos_dict, arr, result)
         elseif game_num > 100
             # make 10 almost random moves (probabilities >= 0.1, if none are like this, purely random)
             board = startboard()
             for i in 1:20
-                # make the kinda random mvoe
+                probs = model_move_distro(model, board)
+                move = int_to_move(rand(probs))
+                domove!(board, move)
             end
-            game = trainig_self_game(model, pos_dict, "", arguments)
+            arr, result = trainig_self_game(model, pos_dict, "", arguments)
+            pos_dict = update_dict(pos_dict, arr, result)
         else
             board = startboard()
             for i in 1:10
-                # make random move
+                domove!(board, rand(moves(board)))
             end
             arr, result = training_self_game(model, board.fen, arguments)
             pos_dict = update_dict(pos_dict, arr, result)
@@ -90,16 +100,17 @@ function self_play(model::ChessNet, arguments::Dict{String, Int}, positions_file
     return model
 end
 
-function train_model(model::ChessNet, dict::Dict{String, Tuple{SparseVector{Int, Int}, Float32}})
+
+function train_model(model::ChessNet, dict::Dict{String, Tuple{SparseVector{Float64}, Int, Float32}})
     return model
 end
 
 
 if abspath(PROGRAM_FILE) == @__FILE__
 	JLD2.@load "../models/supervised_model.jld2" model
-    arguments = Dict{String, Int}()
+    arguments = Dict{String, Float64}()
     arguments["num_games"] = 1000
     arguments["num_searches"] = 100
     arguments["C"] = 2
-    model = self_play(model, arguments, "../data/common_games.txt")
+    model = self_play_training(model, arguments, "../data/common_games.txt")
 end
