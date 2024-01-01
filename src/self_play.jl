@@ -13,13 +13,13 @@ function training_self_game(model::ChessNet, starting_position::String, args::Di
 		board = fromfen(starting_position)
 	end
     game = SimpleGame(board)
-    arr = Vector{Tuple{String, Vector{Float64}, Float64}}()
+    arr = Vector{Tuple{String, SparseVector{Float64}, Float64}}()
     while !(isterminal(game))
-        (probs, move) = tree_move_with_distro(model, game, args)
+        #(probs, move) = tree_move_with_distro(model, game, args)
+        (probs, move) = model_move_with_distro(model, game, args)
         _, value = model.model(board_to_tensor(game.board))
 		move = int_to_move(Int(only(move)))
-        println(tostring(move))
-        push!(arr, (fen(game.board), probs, value))
+        push!(arr, (fen(game.board), probs, only(value)))
         domove!(game, move)
 	end
     res = game.headers.:result
@@ -36,22 +36,22 @@ function update_dict(dict::Dict{String, Tuple{SparseVector{Float64}, Int, Float6
     # temporal difference
     for i in 1:size(arr)[1]
         pos = size(arr)[1] - i + 1
-        if pos == size(arr)
-            arr[pos][3] = result
+        if pos == size(arr)[1]
+            arr[pos] = (arr[pos][1], arr[pos][2], result)
         else
             delta = γ * arr[pos + 1][3] - arr[pos][3]
-            arr[pos][3] += alpha * delta
+            arr[pos] = (arr[pos][1], arr[pos][2], arr[pos][3] + alpha * delta)
         end
     end
 
-    dict_keys = collect(key(dict))
+    dict_keys = collect(keys(dict))
     for entry in arr
         if !(entry[1] in dict_keys)
             dict[entry[1]] = (spzeros(Int, 4096), 0, 0)
         end
         current_data = dict[entry[1]]
-        new_data = Tuple{SparseVector{Float64}, Int, Float64}(current_data[1], current_data[2] + 1, current_data[3] + result)
-        new_data[1][move_int] += 1
+        #new_data = Tuple{SparseVector{Float64}, Int, Float64}(current_data[1], current_data[2] + 1, current_data[3] + result)
+        new_data = (current_data[1], current_data[2] + 1, current_data[3] + result)
         dict[entry[1]] = new_data
     end
     return dict
@@ -78,7 +78,7 @@ function self_play_training(model::ChessNet, arguments::Dict{String, Float64}, p
             # make 10 almost random moves (probabilities >= 0.1, if none are like this, purely random)
             board = startboard()
             for i in 1:20
-                probs = model_move_distro(model, board)
+                (probs, _) = model_move_with_distro(model, board)
                 move = int_to_move(rand(probs))
                 domove!(board, move)
             end
@@ -89,12 +89,11 @@ function self_play_training(model::ChessNet, arguments::Dict{String, Float64}, p
             for i in 1:10
                 domove!(board, rand(moves(board)))
             end
-            arr, result = training_self_game(model, board.fen, arguments)
+            arr, result = training_self_game(model, fen(board), arguments)
             pos_dict = update_dict(pos_dict, arr, result)
         end
         game_num += 1
     end
-    # change dict
     # train model on dict
     model = train_model(model, pos_dict)
     return model
@@ -102,15 +101,17 @@ end
 
 
 function train_model(model::ChessNet, dict::Dict{String, Tuple{SparseVector{Float64}, Int, Float32}})
+    pos_keys = collect(keys(pos_dict))
+
     return model
 end
 
 
 if abspath(PROGRAM_FILE) == @__FILE__
-	JLD2.@load "../models/supervised_model.jld2" model
+	JLD2.@load "../models/supervised_model_1.jld2" model
     arguments = Dict{String, Float64}()
-    arguments["num_games"] = 1000
-    arguments["num_searches"] = 100
+    arguments["num_games"] = 10
+    arguments["num_searches"] = 70
     arguments["C"] = 2
     model = self_play_training(model, arguments, "../data/common_games.txt")
 end

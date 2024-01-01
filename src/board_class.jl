@@ -119,3 +119,9 @@ function board_to_tensor(board::Board)
 	tensor = permutedims(tensor, (3, 4, 2, 1))
 	return tensor
 end
+
+function game_result(game::SimpleGame)
+    res = game.headers.:result
+    result = res == "1-0" ? 1 : res == "0-1" ? -1 : 0
+    return result
+end

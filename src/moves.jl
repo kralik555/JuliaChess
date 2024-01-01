@@ -5,7 +5,7 @@ include("board_class.jl")
 include("model.jl")
 include("mcts.jl")
 
-function model_move(model, board)
+function model_move(model::ChessNet, board::Board)
     # Convert the board to a tensor representation suitable for your model
 	tensor = board_to_tensor(board)
 	moves, value = model.model(tensor)
@@ -33,7 +33,7 @@ function tree_move_with_distro(model::ChessNet, game::SimpleGame, args::Dict{Str
     return (move_probs, move)
 end
 
-function model_move_distro(model::ChessNet, board::Board)
+function model_move_with_distros(model::ChessNet, board::Board)
     probs, _ = model.model(board_to_tensor(game.board))
     valid_moves = get_valid_moves(game.board)
     probs = vec(probs)
@@ -45,5 +45,5 @@ function model_move_distro(model::ChessNet, board::Board)
             moves[move] = probs[move]
         end
     end
-    return moves
+    return (moves, argmax(moves[:]))
 end

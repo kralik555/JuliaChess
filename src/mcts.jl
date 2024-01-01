@@ -103,9 +103,9 @@ function search(tree::MCTS)
 			policy = policy .* valid_moves
 			policy = policy ./ sum(policy) 
 			expand(node, policy)
-		else
-			value = get_game_over_and_value(node.game.board)[2]
-			if sidetomove(node.game.board) == Chess.WHITE
+        else
+            result = game_result(node.game)
+            if sidetomove(node.game.board) == Chess.WHITE
 				value *= -1
 			end
 		end
