@@ -26,24 +26,18 @@ function tree_move(model::ChessNet, game::SimpleGame, args::Dict{String, Float64
 	return move
 end
 
-function tree_move_with_distro(model::ChessNet, game::SimpleGame, args::Dict{String, Float64})
-    tree = MCTS(game, args, model)
-    move_probs = search(tree)
+function tree_move_with_distro(model::ChessNet, board::Board, args::Dict{String, Float64})
+    tree = MCTSBoard(board, args, model)
+    move_probs, value = search(tree)
     move = argmax(move_probs)
-    return (move_probs, move)
+    return (move_probs, move, value)
 end
 
 function model_move_with_distros(model::ChessNet, board::Board)
-    probs, _ = model.model(board_to_tensor(game.board))
-    valid_moves = get_valid_moves(game.board)
+    probs, _ = model.model(board_to_tensor(board))
+    valid_moves = get_valid_moves(board)
     probs = vec(probs)
     probs = probs .* valid_moves
-    probs = probs ./ sum(policy)
-    moves = Dict{Int, Float64}
-    for move in 1:4096
-        if probs[move] > 0
-            moves[move] = probs[move]
-        end
-    end
-    return (moves, argmax(moves[:]))
+    probs = probs ./ sum(probs)
+    return (probs, argmax(probs[:]))
 end

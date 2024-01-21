@@ -62,10 +62,10 @@ function get_game_over_and_value(board::Board)
 		if ischeckmate(board)
 			return (true, board.turn == :white ? -1 : 1)
 		else
-			return (true, 0)
+			return (true, 0.0)
 		end
     end
-	return (false, 0)
+	return (false, 0.0)
 end
 
 
@@ -122,6 +122,39 @@ end
 
 function game_result(game::SimpleGame)
     res = game.headers.:result
-    result = res == "1-0" ? 1 : res == "0-1" ? -1 : 0
+    result = res == "1-0" ? 1.0 : res == "0-1" ? -1.0 : 0.0
     return result
+end
+
+
+function game_result(board::Board)
+    if ischeckmate(board)
+        return sidetomove(board) == :white ? -1.0 : 1.0
+    end
+    return 0.0
+end
+
+
+function repetition_result(board::Board)
+    piece_values = Dict(QUEEN => 9, ROOK => 5, BISHOP => 3, KNIGHT => 3,PAWN => 1, KING => 0)
+
+    white_value = 0
+    black_value = 0
+    for tile = 1:64
+	    piece = pieceon(board, Square(tile))
+        if piece !== EMPTY
+            if pcolor(piece) == Chess.WHITE
+                white_value += piece_values[ptype(piece)]
+            else
+                black_value += piece_values[ptype(piece)]
+            end
+        end
+    end
+    if white_value > black_value
+        return 0.5
+    elseif black_value > white_value
+        return -0.5
+    else
+        return 0.0
+    end
 end
