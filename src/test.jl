@@ -7,14 +7,17 @@ include("mcts.jl")
 include("moves.jl")
 include("data_reader.jl")
 
-function test_models(model1::ChessNet, model2::ChessNet, positions_file::String, args::Dict{String, Int})
+function test_models(model1::ChessNet, model2::ChessNet, positions_file::String, args::Dict{String, Union{Int, Float64}})
 	model1_wins = 0
 	model2_wins = 0
 	draws = 0
     
     positions = load_most_common(positions_file)
 
-    for position in positions
+    sth, _ = model1.model(board_to_tensor(startboard()))
+    sth, _ = model2.model(board_to_tensor(startboard()))
+
+    Threads.@threads for position in positions
         game = SimpleGame(fromfen(position))
         result1 = play_game(model1, model2, game, args)
         result2 = play_game(model2, model1, game, args)
@@ -31,11 +34,20 @@ function test_models(model1::ChessNet, model2::ChessNet, positions_file::String,
 	return (model1_wins, draws, model2_wins)
 end
 
-function play_game(model1::ChessNet, model2::ChessNet, game::SimpleGame, args::Dict{String, Int})
-    while !(game_over(game)[1])
-        move = tree_move(model, game, args)
+function play_game(model1::ChessNet, model2::ChessNet, game::SimpleGame, args::Dict{String, Union{Int64, Float64}})
+    while !isterminal(game)
+        println(fen(game.board))
+        move = tree_move(model1, game, args)
         move = int_to_move(Int(only(move)))
-        println(move)
+        println(tostring(move))
+        domove!(game, move)
+        if isterminal(game)
+            break
+        end
+        println(fen(game.board))
+        move = tree_move(model2, game, args)
+        move = int_to_move(Int(only(move)))
+        println(tostring(move))
         domove!(game, move)
     end
 
@@ -70,7 +82,12 @@ end
 
 
 if abspath(PROGRAM_FILE) == @__FILE__
-	JLD2.@load "../models/supervised_model.jld2" model
-	args = Dict("C" => 2, "num_searches" => 100)
-	play_self_game(model, "", args)
+	JLD2.@load "../models/supervised_model_1.jld2" model
+    model2 = model
+    model = nothing
+    JLD2.@load "../models/supervised_model_1.jld2" model
+    model1 = model
+    model = nothing
+    args = Dict{String, Union{Int, Float64}}("C" => 2, "num_searches" => 100, "search_time" => 0.8)
+    test_models(model1, model2, "../data/common_games.txt", args)
 end
