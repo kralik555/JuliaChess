@@ -101,7 +101,6 @@ function self_play_training(models::Vector{ChessNet}, arguments::Dict{String, Fl
             arr, result = training_self_game(model, fen(board), arguments)
         end
         println("Time: ", time() - time0)
-        println("Writing game result")
         serialize("temp/data_$(Int64(game_num)).bin", (arr, result))
     end
     # train model on dict
@@ -114,7 +113,7 @@ function training_on_games(model::ChessNet)
     files = readdir("temp")
     num_files = size(files)[1]
     pos_dict = Dict{String, Tuple{SparseVector{Float64}, Int, Float64}}()
-    for i in 1:num_files
+    for i in 1:200
         if !("data_$i.bin" in files)
             continue
         end
@@ -128,6 +127,8 @@ function training_on_games(model::ChessNet)
     if size(collect(keys(pos_dict)))[1] > 0
         model = train_model(model, pos_dict)
     end
+    num_models = size(readdir("../models/self_play_models/"))[1]
+    JLD2.@save ("../models/self_play_models/model_$(num_models + 1).jld2") model
     rm("temp", recursive=true)
     return model
 end
@@ -155,7 +156,14 @@ end
 
 
 if abspath(PROGRAM_FILE) == @__FILE__
-    for i in 1:7
+    try
+        files = readdir("temp")
+        model_num = size(readdir("../models/self_play_models/"))[1]
+        JLD2.@load "../models/self_play_models/model_$(model_num).jld2" model
+        model = training_on_games(model)
+    catch e
+    end
+    for i in 1:5
         models = Vector{ChessNet}()
         nthreads = Threads.nthreads()
         for i in 1:nthreads
@@ -179,8 +187,6 @@ if abspath(PROGRAM_FILE) == @__FILE__
         end
         time0 = time()
         model = self_play_training(models, arguments, "../data/common_games.txt")
-        model_num = size(readdir("../models/self_play_models/"))[1] + 1
-        JLD2.@save "../models/self_play_models/model_$(model_num).jld2" model
         println("Time for training: ", time() - time0)
     end
 end

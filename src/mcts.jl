@@ -78,21 +78,14 @@ end
 
 
 function expand(node::Node, policy)
-    println("Expansion")
 	for move_idx in eachindex(policy)
 		prob = policy[move_idx]
 		if prob > 0
-            println("next move")
 			move = int_to_move(move_idx)
-            println("decoded")
             child_state = deepcopy(node.game)
-            println("copied")
             domove!(child_state, move)
-            println("did move")
             child = Node(child_state, node.args, node, move_idx, prob)
-            println("made child")
 			push!(node.children, child)
-            println("pushed child")
 		end
 	end
 end
@@ -141,7 +134,7 @@ function search(tree::MCTS)
     color = sidetomove(tree.game.board)
     result = 0.0
     searches = 0
-    while time() - time0 < tree.args["search_time"]	
+    while time() - time0 < tree.args["search_time"]	&& searches < tree.args["num_searches"]
         node = root
         result = 0.0
 		while is_fully_expanded(node)
@@ -166,7 +159,6 @@ function search(tree::MCTS)
 		action_probs[child.action_taken] = child.visit_count
 	end
 	action_probs = action_probs ./ sum(action_probs)
-    println(searches)
     return action_probs, root.value_sum / root.visit_count
 end
 
