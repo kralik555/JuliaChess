@@ -1,6 +1,5 @@
 using Flux
 using Chess
-using Chess.UCI
 using JLD2
 using Flux.Data: DataLoader
 include("data_reader.jl")
@@ -68,36 +67,7 @@ function train_on_dict(model::ChessNet, file_path::String, num_epochs::Int)
 	end
 end
 
-
-function train_with_stockfish(model::ChessNet, stockfish_path::String)
-	engine = runengine(stockfish_path)
-	positions = Vector{String}()
-	values = Vector{Float64}()
-	policies = Vector{SparseVector{Float64}}()
-
-	for i in 1:10000
-		board = startboard()
-		setboard(engine, board)
-		while !isterminal(board)
-			push!(positions, fen(board))
-			#sparse_policy = SparseVector(4096, Float64)
-			move_values = mpvsearch(board, engine, depth=8)
-			for move_value in move_values
-				move = move_value.pv[1]
-				value = move_value.score.value
-				println(move)
-				println(value)
-			end
-			domove!(board, rand(moves(board)))
-			push!(values, score)
-			push!(policies, policy)
-		end
-	end
-	quit(engine)
-end
-
 if abspath(PROGRAM_FILE) == @__FILE__
 	net = ChessNet(8, 128)
-	#train_on_dict(net, "../data/move_distros/", 3)
-	train_with_stockfish(net, "../stockfish/stockfish")
+	train_on_dict(net, "../data/move_distros/", 3)
 end
