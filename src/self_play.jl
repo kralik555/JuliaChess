@@ -8,12 +8,13 @@ include("test.jl")
 include("data_reader.jl")
 include("supervised_training.jl")
 
-function training_self_game(model::ChessNet, starting_position::String, args::Dict{String, Float64})
+function training_self_game(model::ChessNet, starting_position::String, args::Dict{String, Union{Float64, Int64}}, game_num)
     if starting_position == ""
 		board = startboard()
 	else
 		board = fromfen(starting_position)
 	end
+    println(fen(board))
     arr = Vector{Tuple{String, SparseVector{Float64}, Float64}}()
     pos_arr = Vector{String}()
     is_repetition = false
@@ -28,7 +29,7 @@ function training_self_game(model::ChessNet, starting_position::String, args::Di
         push!(arr, (fen(board), probs, only(value)))
         push!(pos_arr, fen(board))
         domove!(board, move)
-        println(move)
+        println(move, "\t", game_num)
 	end
     result = 0
     if is_repetition == false
@@ -69,33 +70,30 @@ function update_dict(dict::Dict{String, Tuple{SparseVector{Float64}, Int, Float6
 end
 
 
-function self_play_training(model::ChessNet, arguments::Dict{String, Float64}, positions_file::String)
+function self_play_training(model::ChessNet, arguments::Dict{String, Union{Float64, Int64}}, positions_file::String)
     # key = board FEN
     # Sparse vector = move probabilities based on the tree
     # Int = number of visits - to divide the final result by
     # Float64 is the value of the position (first from model, then changed by the temporal difference
-	pos_dict = Dict{String, Tuple{SparseVector{Float64}, Int, Float64}}()
     # load positions from most common positions
     positions = load_most_common(positions_file)
-    game_num = 1
-    num_dicts = 1
     try
         mkdir("temp")
     catch e
-        rm("temp/*")
+        rm("temp", recursive=true)
+        mkdir("temp")
     end
-    num_threads = Threads.nthreads()
     lk = ReentrantLock()
-    Threads.@threads :static for game_num in 1:arguments["num_games"]
+    Threads.@threads :dynamic for game_num in 1:arguments["num_games"]
         println("Game number ", game_num)
         # play 100 games from common positions
         if game_num > 900
-            arr, result = training_self_game(model, pos_dict, positions[game_num - 900], arguments)
-            while !trylock(lk)
+            arr, result = training_self_game(model, positions[game_num - 900], arguments, game_num)
+            #=while !trylock(lk)
                 continue
-            end
-            pos_dict =  update_dict(pos_dict, arr, result)
-            unlock(lk)
+            end=#
+            pos_dict = update_dict(pos_dict, arr, result)
+            #unlock(lk)
         elseif game_num > 100
             # make 10 almost random moves (probabilities >= 0.1, if none are like this, purely random)
             board = startboard()
@@ -104,40 +102,37 @@ function self_play_training(model::ChessNet, arguments::Dict{String, Float64}, p
                 move = int_to_move(rand(probs))
                 domove!(board, move)
             end
-            arr, result = trainig_self_game(model, pos_dict, "", arguments)
-            while !trylock(lk)
+            arr, result = trainig_self_game(model, fen(board), arguments, game_num)
+            #=while !trylock(lk)
                 continue
-            end
+            end=#
             pos_dict = update_dict(pos_dict, arr, result)
-            unlock(lk)
+            #unlock(lk)
         else
             board = startboard()
             for i in 1:10
                 domove!(board, rand(moves(board)))
             end
-            arr, result = training_self_game(model, fen(board), arguments)
-            while !trylock(lk)
+            arr, result = training_self_game(model, fen(board), arguments, game_num)
+            #=while !trylock(lk)
                 continue
-            end
+            end=#
             pos_dict = update_dict(pos_dict, arr, result)
-            unlock(lk)
+            #unlock(lk)
         end
-        if size(collect(keys(pos_dict)))[1] >= 512
-            while !trylock(lk)
-                continue
-            end
-            serialize("temp/data_$(num_dicts)).bin", pos_dict)
-            num_dicts += 1
-            pos_dict = Dict{String, Tuple{SparseVector{Float64}, Int, Float64}}()
-            unlock(lk)
-        end
+        serialize("temp/resut_arr_$(game_num).bin", (arr, result))
     end
     # train model on dict
     files = readdir("temp/")
     num_files = size(files)[1]
+	pos_dict = Dict{String, Tuple{SparseVector{Float64}, Int, Float64}}()
     for i in 1:num_files
-        pos_dict = deserialize("temp/data_$i.0.bin")
-        model = train_model(model, pos_dict)
+        arr, result = deserialize("temp/data_$i.0.bin")
+        pos_dict = update_pos_dict(pos_dict, arr, result)
+        if size(collect(keys(pos_dict))) >= 512
+            model = train_model(model, pos_dict)
+            pos_dict = Dict{String, Tuple{SparseVector{Float64}, Int, Float64}}()
+        end
     end
     rm("temp", recursive=true)
     return model
@@ -172,8 +167,8 @@ end
 
 
 if abspath(PROGRAM_FILE) == @__FILE__
-	JLD2.@load "../models/supervised_model_1.jld2" model
-    arguments = Dict{String, Float64}()
+	JLD2.@load "../models/supervised_model.jld2" model
+    arguments = Dict{String, Union{Float64, Int64}}()
     arguments["num_games"] = 1000
     arguments["num_searches"] = 70
     arguments["C"] = 2

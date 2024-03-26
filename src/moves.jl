@@ -26,7 +26,7 @@ function tree_move(model::ChessNet, game::SimpleGame, args::Dict{String, Float64
 	return move
 end
 
-function tree_move_with_distro(model::ChessNet, board::Board, args::Dict{String, Float64})
+function tree_move_with_distro(model::ChessNet, board::Board, args::Dict{String, Union{Float64, Int64}})
     tree = MCTSBoard(board, args, model)
     move_probs, value = search(tree)
     move = argmax(move_probs)
