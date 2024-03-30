@@ -1,5 +1,6 @@
 using Flux
 using Chess
+using Chess.UCI
 using JLD2
 using Flux.Data: DataLoader
 include("data_reader.jl")
@@ -15,7 +16,7 @@ function train_batch(model::ChessNet, tensors, move_distros, game_values)
         return move_loss + value_loss
 	end
 
-	opt = Adam(0.001)
+	opt = Adam(0.0001)
 	
 	tensors = Float32.(tensors)
 	move_distros = Float32.(move_distros)
@@ -67,7 +68,66 @@ function train_on_dict(model::ChessNet, file_path::String, num_epochs::Int)
 	end
 end
 
+
+function train_with_stockfish(model::ChessNet, stockfish_path::String)
+	engine = runengine(stockfish_path)
+	positions = Vector{String}()
+	values = Vector{Float64}()
+	policies = Vector{SparseVector{Float64}}()
+
+	for i in 1:10000
+		board = startboard()
+		setboard(engine, board)
+		while !isterminal(board)
+			push!(positions, fen(board))
+			engine_move_values = mpvsearch(board, engine, depth=8)
+			move_values = Vector{Float64}()
+			move_indexes = Vector{Int}()
+			for move_value in engine_move_values
+				move = move_value.pv[1]
+				value = move_value.score.value
+				push!(move_indexes, encode_move(tostring(move)))
+				push!(move_values, value)
+			end
+			move_values /= 100
+			position_value = 0.0
+			if sidetomove(board) == WHITE
+				position_value = maximum(move_values)
+			else
+				position_value = minimum(move_values)
+			end
+			policy = SparseVector(4096, move_indexes, move_values)
+			domove!(board, rand(moves(board)))
+			push!(values, position_value)
+			push!(policies, policy)
+			if length(values) == 128
+				position_tensors = []
+				for position in positions
+					push!(position_tensors, create_input_tensors(fromfen(position)))
+				end
+				v_policies = Vector{Any}()
+				for policy in policies
+					v_policy = Vector(policy)
+					push!(v_policies, reshape(v_policy, 1, :))
+				end
+				v_policies = vcat(v_policies...)
+				position_tensors = permutedims(cat(position_tensors..., dims=4), (2, 3, 1, 4))
+				model = train_batch(model, position_tensors, v_policies, values)
+				priintln(i)
+				positions = Vector{String}()
+				values = Vector{Float64}()
+				policies = Vector{SparseVector{Float64}}()
+			end
+		end
+		if i % 1000 == 0
+			model_save_path = "../models/sp_stockfish_$(div(i, 1000)).jld2"
+			JLD2.@save model_save_path model
+		end
+	end
+	quit(engine)
+end
+
 if abspath(PROGRAM_FILE) == @__FILE__
 	net = ChessNet(8, 128)
-	train_on_dict(net, "../data/move_distros/", 3)
+	train_with_stockfish(net, "../stockfish/stockfish")
 end

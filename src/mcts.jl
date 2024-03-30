@@ -49,7 +49,6 @@ function get_ucb(child::Union{Node, NodeBoard}, node::Union{Node, NodeBoard})
 end
 
 
-# this can be threaded I guess
 function select(node::Union{Node, NodeBoard})
 	best_child = nothing
 	best_ucb = -Inf
@@ -65,7 +64,6 @@ function select(node::Union{Node, NodeBoard})
 end
 
 
-# this can be theraded
 function expand(node::NodeBoard, policy)
 	for move_idx in eachindex(policy)
 		prob = policy[move_idx]
@@ -85,7 +83,7 @@ function expand(node::Node, policy)
 		if prob > 0
 			move = int_to_move(move_idx)
             child_state = deepcopy(node.game)
-			domove!(child_state, move)
+            domove!(child_state, move)
             child = Node(child_state, node.args, node, move_idx, prob)
 			push!(node.children, child)
 		end
@@ -93,12 +91,15 @@ function expand(node::Node, policy)
 end
 
 
-function backpropagate(node::Union{Node, NodeBoard}, value::Union{Float32, Int64, Float64})
-	node.value_sum = node.value_sum + value
+function backpropagate(node::Union{Node, NodeBoard}, value::Union{Float32, Int64, Float64}, color)
+	if color == Chess.WHITE
+        node.value_sum = node.value_sum + value
+    else
+        node.value_sum = node.value_sum - value
+    end
 	node.visit_count = node.visit_count + 1
-	value = -value
 	if node.parent !== nothing
-		backpropagate(node.parent, value)
+		backpropagate(node.parent, value, color)
 	end
 end
 
@@ -129,66 +130,65 @@ end
 
 function search(tree::MCTS)
 	root = Node(tree.game, tree.args)
-	
-	for search in 1:tree.args["num_searches"]
-		node = root
-		
+    time0 = time()
+    color = sidetomove(tree.game.board)
+    result = 0.0
+    searches = 0
+    while time() - time0 < tree.args["search_time"]	&& searches < tree.args["num_searches"]
+        node = root
+        result = 0.0
 		while is_fully_expanded(node)
 			node = select(node)
 		end
-
-		if !(isterminal(node.game.board))
-			policy, value = model.model(board_to_tensor(node.game.board))
+		if !(isterminal(node.game))
+			policy, result = tree.model.model(board_to_tensor(node.game.board))
 			valid_moves = get_valid_moves(node.game.board)
 			policy = vec(policy)
 			policy = policy .* valid_moves
 			policy = policy ./ sum(policy) 
 			expand(node, policy)
+            result = only(result)
         else
             result = game_result(node.game)
-            if sidetomove(node.game.board) == Chess.WHITE
-				value *= -1
-			end
 		end
-		backpropagate(node, value[1, 1])
+		backpropagate(node, result, color)
+        searches += 1
 	end
 	action_probs = zeros(Float64, 4096)
 	for child in root.children
 		action_probs[child.action_taken] = child.visit_count
 	end
 	action_probs = action_probs ./ sum(action_probs)
-	return action_probs
+    return action_probs, root.value_sum / root.visit_count
 end
 
 
 function search(tree::MCTSBoard)
 	root = NodeBoard(tree.board, tree.args)
+    color = sidetomove(root.board)
     time_searching = time()
-	#for search in 1:tree.args["num_searches"]
-    is_first = true
-    while time() - time_searching < arguments["search_time"]
+    node = root
+    result = 0.0
+    searches = 0
+    while #=time() - time_searching < tree.args["search_time"] || =#searches < tree.args["num_searches"]
         node = root
-	    result = 0.0
-        is_first = false
 		while is_fully_expanded(node)
 			node = select(node)
 		end
-
 		if !(isterminal(node.board))
             tensors = board_to_tensor(node.board)
-			policy, value = model.model(tensors)
+			policy, result = tree.model.model(tensors)
             valid_moves = get_valid_moves(node.board)
 			policy = vec(policy)
 			policy = policy .* valid_moves
 			policy = policy ./ sum(policy) 
 			expand(node, policy)
+            result = only(result)
         else
             result = game_result(node.board)
-            if sidetomove(node.board) == Chess.WHITE
-				result *= -1
-			end
 		end
-		backpropagate(node, result)
+		backpropagate(node, result, color)
+        searches += 1
 	end
 	action_probs = zeros(Float64, 4096)
 	for child in root.children
