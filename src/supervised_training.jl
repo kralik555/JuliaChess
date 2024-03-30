@@ -128,7 +128,9 @@ function train_with_stockfish(model::ChessNet, stockfish_path::String)
 		end
 	end
 	quit(engine)
-	return model
+
+	model_save_path = "../models/sp_stockfish.jld2"
+	JLD2.@save model_save_path model                                            
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__
