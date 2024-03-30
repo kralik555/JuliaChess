@@ -26,3 +26,4 @@ Manifest.toml
 # datasets are too big
 data/files/
 data/move_distros/
+stockfish/

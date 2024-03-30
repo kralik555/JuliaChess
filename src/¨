@@ -16,6 +16,13 @@ function train_batch(model::ChessNet, tensors, move_distros, game_values)
         return move_loss + value_loss
 	end
 
+
+	println(size(tensors))
+	println(size(game_values))
+	println(size(move_distros))
+	println(typeof(tensors))
+	println(typeof(game_values))
+	println(typeof(move_distros))
 	opt = Adam(0.0001)
 	
 	tensors = Float32.(tensors)
@@ -96,6 +103,7 @@ function train_with_stockfish(model::ChessNet, stockfish_path::String)
 			else
 				position_value = minimum(move_values)
 			end
+			println(position_value)
 			policy = SparseVector(4096, move_indexes, move_values)
 			domove!(board, rand(moves(board)))
 			push!(values, position_value)
@@ -113,7 +121,6 @@ function train_with_stockfish(model::ChessNet, stockfish_path::String)
 				v_policies = vcat(v_policies...)
 				position_tensors = permutedims(cat(position_tensors..., dims=4), (2, 3, 1, 4))
 				model = train_batch(model, position_tensors, v_policies, values)
-				priintln(i)
 				positions = Vector{String}()
 				values = Vector{Float64}()
 				policies = Vector{SparseVector{Float64}}()
@@ -129,5 +136,6 @@ end
 
 if abspath(PROGRAM_FILE) == @__FILE__
 	net = ChessNet(8, 128)
+	#train_on_dict(net, "../data/move_distros/", 3)
 	train_with_stockfish(net, "../stockfish/stockfish")
 end
