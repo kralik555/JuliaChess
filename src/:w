@@ -27,6 +27,8 @@ function train_batch(model::ChessNet, tensors, move_distros, game_values)
 
 	data_loader = DataLoader((tensors, move_distros, game_values), batchsize=128, shuffle=true)
 	
+	println("Data loader created!")
+
 	for (x_batch, y_move_batch, y_value_batch) in data_loader
 		x_batch = Float32.(x_batch)
 		Flux.train!(loss, Flux.params(model.model), [(x_batch, y_move_batch, y_value_batch)], opt)
@@ -78,17 +80,10 @@ function change_value(value::Float64)
 	return value
 end
 
-function change_policy(policy::Vector{Float64})
-	policy /= 1500
-	for p in policy
-		if p > 1
-			p = 1
-		elseif p < -1
-			p = -1
-		end
-	end
-	exp_policy = exp.(policy .- maximum(policy))
-	return exp_policy / sum(exp_policy)
+function change_policy(policy::SparseVector{Float64})
+	policy /= 100
+	policy /= 15
+	return policy
 end
 
 function train_with_stockfish(model::ChessNet, stockfish_path::String)
@@ -97,7 +92,7 @@ function train_with_stockfish(model::ChessNet, stockfish_path::String)
 	values = Vector{Float64}()
 	policies = Vector{SparseVector{Float64}}()
 
-	for i in 1:10_000
+	for i in 1:100_000
 		board = startboard()
 		setboard(engine, board)
 		while !isterminal(board)
@@ -108,12 +103,6 @@ function train_with_stockfish(model::ChessNet, stockfish_path::String)
 			for move_value in engine_move_values
 				move = move_value.pv[1]
 				value = move_value.score.value
-				if move_value.score.ismate == true
-					value = 1500
-					if sidetomove(board) == BLACK
-						value = -1500
-					end
-				end
 				push!(move_indexes, encode_move(tostring(move)))
 				push!(move_values, value)
 			end
@@ -130,7 +119,7 @@ function train_with_stockfish(model::ChessNet, stockfish_path::String)
 			domove!(board, rand(moves(board)))
 			push!(values, position_value)
 			push!(policies, policy)
-			if length(positions) == 128
+			if length(values) == 128
 				position_tensors = []
 				for position in positions
 					push!(position_tensors, create_input_tensors(fromfen(position)))
@@ -143,7 +132,7 @@ function train_with_stockfish(model::ChessNet, stockfish_path::String)
 				v_policies = vcat(v_policies...)
 				position_tensors = permutedims(cat(position_tensors..., dims=4), (2, 3, 1, 4))
 				model = train_batch(model, position_tensors, v_policies, values)
-				println(i)
+				priintln(i)
 				positions = Vector{String}()
 				values = Vector{Float64}()
 				policies = Vector{SparseVector{Float64}}()
