@@ -47,6 +47,7 @@ function play_game(model1::ChessNet, model2::ChessNet, game::SimpleGame, args::D
     while !isterminal(game)
         move = tree_move(model1, game, args)
         move = int_to_move(Int(only(move)))
+        #move = model_move(model1, game.board)
         println(tostring(move))
         domove!(game, move)
         if isterminal(game)
@@ -89,12 +90,22 @@ end
 
 
 if abspath(PROGRAM_FILE) == @__FILE__
-	JLD2.@load "../models/self_play_models/model_2.jld2" model
+	JLD2.@load "../models/sp_stockfish_3.jld2" model
     model1 = model
     model = nothing
-    JLD2.@load "../models/supervised_model_1.jld2" model
+    JLD2.@load "../models/sp_stockfish_1.jld2" model
     model2 = model
     model = nothing
-    args = Dict{String, Union{Int, Float64}}("C" => 2, "num_searches" => 100, "search_time" => 1.0)
-    test_models(model1, model2, "../data/common_games.txt", args)
+    args = Dict{String, Union{Int, Float64}}("C" => 2, "num_searches" => 300, "search_time" => 3.0)
+    board = startboard()
+    policy, value = model1.model(board_to_tensor(board))
+    for move in moves(board)
+        println(tostring(move), policy[encode_move(tostring(move))])
+    end
+    println(value)
+    policy, value = model2.model(board_to_tensor(board))
+    result = play_game(model1, model2, SimpleGame(board), args)
+    println(result)
+    result = play_game(model2, model1, SimpleGame(board), args)
+    println(result)
 end

@@ -27,3 +27,4 @@ Manifest.toml
 data/files/
 data/move_distros/
 stockfish/
+models/

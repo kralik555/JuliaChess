@@ -16,7 +16,8 @@ function model_move(model::ChessNet, board::Board)
 
     # Choose the move with the highest probability
     best_move_index = argmax(moves[:])
-	return best_move_index
+    move = int_to_move(best_move_index)
+	return move
 end
 
 function tree_move(model::ChessNet, game::SimpleGame, args::Dict{String, Union{Float64, Int64}})

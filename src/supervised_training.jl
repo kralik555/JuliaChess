@@ -69,11 +69,11 @@ end
 
 
 function change_value(value::Float64)
-	value /= 100
-	if value > 15
-		value = 15
-	elseif value < -15
-		value = -15
+	value /= 1500
+	if value > 1
+		value = 1
+	elseif value < -1
+		value = -1
 	end
 	return value
 end
@@ -100,6 +100,7 @@ function train_with_stockfish(model::ChessNet, stockfish_path::String)
 	for i in 1:10_000
 		board = startboard()
 		setboard(engine, board)
+        println(i)
 		while !isterminal(board)
 			push!(positions, fen(board))
 			engine_move_values = mpvsearch(board, engine, depth=8)
@@ -159,5 +160,5 @@ end
 
 if abspath(PROGRAM_FILE) == @__FILE__
 	net = ChessNet(8, 128)
-	train_with_stockfish(net, "../stockfish/stockfish")
+	train_with_stockfish(net, "../stockfish/stockfish.exe")
 end
