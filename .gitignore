@@ -23,8 +23,9 @@ docs/site/
 # environment.
 Manifest.toml
 
-# datasets are too big
+# data too big
 data/files/
 data/move_distros/
 stockfish/
 models/
+src/temp/

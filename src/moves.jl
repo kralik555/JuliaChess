@@ -6,7 +6,6 @@ include("model.jl")
 include("mcts.jl")
 
 function model_move(model::ChessNet, board::Board)
-    # Convert the board to a tensor representation suitable for your model
 	tensor = board_to_tensor(board)
 	moves, value = model.model(tensor)
 	valid_moves = get_valid_moves(board)                           
@@ -14,7 +13,6 @@ function model_move(model::ChessNet, board::Board)
     moves = moves .* valid_moves                                      
     moves = moves ./ sum(moves)                                      
 
-    # Choose the move with the highest probability
     best_move_index = argmax(moves[:])
     move = int_to_move(best_move_index)
 	return move
@@ -24,15 +22,9 @@ function tree_move(model::ChessNet, game::SimpleGame, args::Dict{String, Union{F
 	tree = MCTS(game, args, model)
 	move_probs, value = search(tree)
 	move = argmax(move_probs)
-	return move
+	return move_probs, move, tree.root.value_sum/tree.root.visit_count
 end
 
-function tree_move_with_distro(model::ChessNet, board::Board, args::Dict{String, Union{Float64, Int64}})
-    tree = MCTSBoard(board, args, model)
-    move_probs, value = search(tree)
-    move = argmax(move_probs)
-    return (move_probs, move, value)
-end
 
 function model_move_with_distros(model::ChessNet, board::Board)
     probs, _ = model.model(board_to_tensor(board))
