@@ -45,15 +45,14 @@ end
 
 function play_game(model1::ChessNet, model2::ChessNet, game::SimpleGame, args::Dict{String, Union{Int64, Float64}})
     while !isterminal(game)
-        move = tree_move(model1, game, args)
+        probs, move, value = tree_move(model1, game, args)
         move = int_to_move(Int(only(move)))
-        #move = model_move(model1, game.board)
         println(tostring(move))
         domove!(game, move)
         if isterminal(game)
             break
         end
-        move = tree_move(model2, game, args)
+        probs, move, value = tree_move(model2, game, args)
         move = int_to_move(Int(only(move)))
         println(tostring(move))
         domove!(game, move)
@@ -90,13 +89,13 @@ end
 
 
 if abspath(PROGRAM_FILE) == @__FILE__
-	JLD2.@load "../models/sp_stockfish_3.jld2" model
+	JLD2.@load "../models/sp_stockfish_2.jld2" model
     model1 = model
     model = nothing
     JLD2.@load "../models/sp_stockfish_1.jld2" model
     model2 = model
     model = nothing
-    args = Dict{String, Union{Int, Float64}}("C" => 2, "num_searches" => 300, "search_time" => 3.0)
+    args = Dict{String, Union{Int, Float64}}("C" => 1.41, "num_searches" => 300, "search_time" => 3.0)
     board = startboard()
     policy, value = model1.model(board_to_tensor(board))
     for move in moves(board)

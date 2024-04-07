@@ -22,7 +22,7 @@ function tree_move(model::ChessNet, game::SimpleGame, args::Dict{String, Union{F
 	tree = MCTS(game, args, model)
 	move_probs, value = search(tree)
 	move = argmax(move_probs)
-	return move_probs, move, tree.root.value_sum/tree.root.visit_count
+	return move_probs, move, value
 end
 
 

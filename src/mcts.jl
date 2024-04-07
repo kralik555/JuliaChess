@@ -18,18 +18,18 @@ mutable struct Node
 end
 
 
-function is_fully_expanded(node::Union{Node, NodeBoard})
+function is_fully_expanded(node::Node)
 	return length(node.children) > 0
 end
 
 
 function get_ucb(child::Node, node::Node)
 	if child.visit_count == 0
-		q_value = 0
+        q_value = Inf
 	else
-		q_value = 1 - ((child.value_sum/child.visit_count) + 1) / 2
-	end
-
+		#q_value = 1 - ((child.value_sum/child.visit_count) + 1) / 2
+	    q_value = child.value_sum / child.visit_count
+    end
 	return q_value + node.args["C"] * sqrt(node.visit_count/(child.visit_count + 1)) * child.prior
 end
 
