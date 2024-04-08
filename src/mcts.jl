@@ -33,6 +33,10 @@ function get_ucb(child::Node, node::Node)
 	return q_value + node.args["C"] * sqrt(node.visit_count/(child.visit_count + 1)) * child.prior
 end
 
+function get_ucb(node::Node)
+	return node.ucb
+end
+
 
 function update_ucb(node::Node)
 	q_value = node.value_sum / node.visit_count
@@ -41,8 +45,15 @@ end
 
 
 function select(node::Node)
-	best_child = node.children[1]
-	#best_child = maximum(node.children, key = child -> child.ucb)
+	#best_child = maximum(get_ucb, node.children)
+	best_child = Nothing
+	best_ucb = -Inf
+	for child in node.children
+		ucb = get_ucb(child)
+		if ucb > best_ucb
+			best_child = child
+		end
+	end
 	return best_child
 end
 
