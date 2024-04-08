@@ -160,3 +160,26 @@ function repetition_result(board::Board)
         return 0.0
     end
 end
+
+function change_value(value::Float64)
+	value /= 1500
+	if value > 1
+		value = 1
+	elseif value < -1
+		value = -1
+	end
+	return value
+end
+
+function change_policy(policy::Vector{Float64})
+	policy /= 1500
+	for p in policy
+		if p > 1
+			p = 1
+		elseif p < -1
+			p = -1
+		end
+	end
+	exp_policy = exp.(policy .- maximum(policy))
+	return exp_policy / sum(exp_policy)
+end

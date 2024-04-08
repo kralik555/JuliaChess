@@ -6,6 +6,7 @@ using Flux.Data: DataLoader
 using LinearAlgebra
 include("data_reader.jl")
 include("model.jl")
+include("board_class.jl")
 
 # ==============================================
 
