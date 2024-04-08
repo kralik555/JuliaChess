@@ -1,3 +1,5 @@
+using LinearAlgebra
+using MKL
 using Chess
 using SparseArrays
 using Serialization
@@ -160,11 +162,10 @@ if abspath(PROGRAM_FILE) == @__FILE__
     saved_models = readdir("../models/self_play_models")
     num_models = size(saved_models)[1]
     if num_models == 0
-        JLD2.@load "../models/supervised_model_1.jld2" model
-        push!(models, model)
+        #JLD2.@load "../models/supervised_model_1.jld2" model
+        model = ChessNet()
     else
         JLD2.@load "../models/self_play_models/model_$(num_models).jld2" model
-        push!(models, model)
     end
     arguments = Dict{String, Float64}()
     arguments["num_games"] = 200

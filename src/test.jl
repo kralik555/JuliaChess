@@ -1,3 +1,5 @@
+using LinearAlgebra
+using MKL
 using Chess
 using Flux
 using JLD2
