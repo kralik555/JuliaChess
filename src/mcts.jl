@@ -12,9 +12,10 @@ mutable struct Node
 	children::Vector{Node}
 	visit_count::Integer
 	value_sum::Float32
+	ucb::Float32
 
-	Node(game, args, parent=nothing, action_taken=nothing, prior=0.0) = 
-	new(game, args, parent, action_taken, prior, [], 0, 0.0)
+	Node(game, args, parent=nothing, action_taken=nothing, prior=0.0, ucb=0.0) = 
+	new(game, args, parent, action_taken, prior, [], 0, 0.0, 0.0)
 end
 
 
@@ -27,47 +28,44 @@ function get_ucb(child::Node, node::Node)
 	if child.visit_count == 0
         q_value = Inf
 	else
-		#q_value = 1 - ((child.value_sum/child.visit_count) + 1) / 2
 	    q_value = child.value_sum / child.visit_count
     end
 	return q_value + node.args["C"] * sqrt(node.visit_count/(child.visit_count + 1)) * child.prior
 end
 
 
-function select(node::Node)
-	best_child = nothing
-	best_ucb = -Inf
-
-	for child in node.children
-		ucb = get_ucb(child, node)
-		if ucb > best_ucb
-			best_child = child
-			best_ucb = ucb
-		end
-	end
-	return best_child
+function update_ucb(node::Node)
+	q_value = node.value_sum / node.visit_count
+	node.ucb = q_value + node.args["C"] * sqrt(node.parent.visit_count/(node.visit_count + 1))
 end
 
+
+function select(node::Node)
+	best_child = node.children[1]
+	#best_child = maximum(node.children, key = child -> child.ucb)
+	return best_child
+end
 
 function expand(node::Node, policy)
 	for move_idx in eachindex(policy)
 		prob = policy[move_idx]
 		if prob > 0
 			move = int_to_move(move_idx)
-            child_state = deepcopy(node.game)
+			child_state = deepcopy(node.game)
             domove!(child_state, move)
-            child = Node(child_state, node.args, node, move_idx, prob)
+            child = Node(child_state, node.args, node, move_idx, prob, Inf)
 			push!(node.children, child)
 		end
 	end
 end
 
 
-function backpropagate(node::Node, value::Union{Float32, Int64, Float64}, color)
+function backpropagate(node::Node, value::Union{Float32, Int64, Float64})
 	node.value_sum += value
 	node.visit_count += 1
 	if node.parent !== nothing
-		backpropagate(node.parent, value, color)
+		update_ucb(node)
+		backpropagate(node.parent, value)
 	end
 end
 
@@ -109,7 +107,7 @@ function search(tree::MCTS)
 		if color == BLACK
 			value = -value
 		end
-		backpropagate(node, value, color)
+		backpropagate(node, value)
         searches += 1
 	end
 	action_probs = zeros(Float64, 4096)

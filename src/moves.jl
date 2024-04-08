@@ -18,7 +18,7 @@ function model_move(model::ChessNet, board::Board)
 	return move
 end
 
-function tree_move(model::ChessNet, game::SimpleGame, args::Dict{String, Union{Float64, Int64}})
+function tree_move(model::ChessNet, game::SimpleGame, args::Dict{String, Float64})
 	tree = MCTS(game, args, model)
 	move_probs, value = search(tree)
 	move = argmax(move_probs)

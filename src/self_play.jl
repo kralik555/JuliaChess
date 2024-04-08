@@ -20,22 +20,19 @@ function training_self_game(model::ChessNet, starting_position::String, args::Di
     arr = Vector{Tuple{String, SparseVector{Float64}, Float64}}()
     pos_arr = Vector{String}()
     is_repetition = false
-    while !(isterminal(board))
-        #=if fen(board) in pos_arr
-            is_repetition = true
-            break
-        end=#
-        probs, move, value = tree_move_with_distro(model, board, args)
+    while !(isterminal(game))
+        probs, move, value = tree_move(model, game, args)
 		move = int_to_move(Int(only(move)))
-        push!(arr, (fen(board), probs, only(value)))
-        push!(pos_arr, fen(board))
+        push!(arr, (fen(game.board), probs, only(value)))
+        push!(pos_arr, fen(game.board))
+        println(move)
         domove!(game, move)
 	end
     result = 0
     if is_repetition == false
-        result = game_result(board)
+        result = game_result(game.board)
     else
-        result = repetition_result(board)
+        result = repetition_result(game.board)
     end
     println(result)
     return arr, result
@@ -70,11 +67,6 @@ end
 
 
 function self_play_training(model::ChessNet, arguments::Dict{String, Float64}, positions_file::String)
-    # key = board FEN
-    # Sparse vector = move probabilities based on the tree
-    # Int = number of visits - to divide the final result by
-    # Float64 is the value of the position (first from model, then changed by the temporal difference
-    # load positions from most common positions
     positions = load_most_common(positions_file)
     try
         mkdir("temp")
@@ -82,12 +74,8 @@ function self_play_training(model::ChessNet, arguments::Dict{String, Float64}, p
         rm("temp", recursive=true)
         mkdir("temp")
     end
-    num_threads = Threads.nthreads()
-    Threads.@threads :static for game_num in 1:arguments["num_games"]
-        model = models[Threads.threadid()]
-        println("Game number ", game_num)
-        # play 100 games from common positions
-        time0 = time()
+    time0 = time()
+    for game_num in 1:500
         if game_num > 400
             arr, result = training_self_game(model, positions[game_num - 900], arguments)
         else
@@ -103,9 +91,9 @@ function self_play_training(model::ChessNet, arguments::Dict{String, Float64}, p
             end
             arr, result = training_self_game(model, fen(board), arguments)
         end
-        println("Time: ", time() - time0)
-        serialize("temp/data_$(Int64(game_num)).bin", (arr, result))
     end
+    println("Time: ", time() - time0)
+    serialize("temp/data_$(Int64(game_num)).bin", (arr, result))
     # train model on dict
     println("Finished games!")
     model = training_on_games(models[1])
@@ -168,10 +156,11 @@ if abspath(PROGRAM_FILE) == @__FILE__
         JLD2.@load "../models/self_play_models/model_$(num_models).jld2" model
     end
     arguments = Dict{String, Float64}()
-    arguments["num_games"] = 200
-    arguments["num_searches"] = 100
-    arguments["C"] = 2
-    arguments["search_time"] = 0.8
+    arguments["num_games"] = 200.0
+    arguments["num_searches"] = 100.0
+    arguments["C"] = 2.0
+    arguments["search_time"] = 1.0
+    model.model(board_to_tensor(startboard()))
     model = self_play_training(model, arguments, "../data/common_games.txt")
     println("Time for training: ", time() - time0)
 end
