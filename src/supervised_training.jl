@@ -159,6 +159,6 @@ function train_with_stockfish(model::ChessNet, stockfish_path::String)
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__
-	net = ChessNet(8, 128)
+	net = ChessNet()
 	train_with_stockfish(net, "../stockfish/stockfish.exe")
 end

@@ -2,8 +2,6 @@ using Flux
 using JLD2
 
 struct ChessNet
-    conv_layers::Int
-    conv_neurons::Int
     model
 end
 
@@ -32,41 +30,6 @@ end
 
 function combined_heads_function(x)
     return split_heads(x, policy_head, value_head)
-end
-
-
-function ChessNet(conv_layers::Int, conv_neurons::Int)
-    layers = []
-    
-    # Input layer
-    push!(layers, Conv((3, 3), 18=>conv_neurons, pad=(1,1), stride=(1,1)))
-    push!(layers, relu)
-    
-    # Convolutional layers
-    for _ = 1:conv_layers-1
-		push!(layers, Conv((3, 3), conv_neurons=>conv_neurons, pad=(1,1), stride=(1,1)))
-		push!(layers, BatchNorm(conv_neurons))
-		push!(layers, relu)
-        push!(layers, Dropout(0.1))
-    end
-    
-    # Flatten layer
-    push!(layers, Flux.flatten)
-
-    # Fully connected layers
-    push!(layers, Dense(conv_neurons*8*8, 256, relu))
-   	push!(layers, Dense(256, 256, relu))
-
-    # Splitting into two heads: policy and value
-    policy_head = Chain(Dense(256, 128, relu), Dense(128, 4096), softmax)
-    
-    value_head = Chain(Dense(256, 128, relu), Dense(128, 1, tanh))
-    
-    combined_heads = CombinedHeads(policy_head, value_head)
-    
-    model = Chain(layers..., combined_heads)
-
-    return ChessNet(conv_layers, conv_neurons, model)
 end
 
 
@@ -105,6 +68,6 @@ function ChessNet()
 
     model = Chain(layers..., combined_heads)
 
-    return ChessNet(4, 32, model)
+    return ChessNet(model)
 end
 
