@@ -10,7 +10,7 @@ include("board_class.jl")
 
 # ==============================================
 
-function train_batch(model::ChessNet, tensors, move_distros, game_values)
+function train_batch(model::ChessNet, tensors, move_distros, game_values, opt)
 	function loss(x, y_moves, y_value)
 		y_pred_moves, y_pred_value = model.model(x)
  		move_loss = Flux.crossentropy(y_pred_moves, y_moves)
@@ -18,7 +18,6 @@ function train_batch(model::ChessNet, tensors, move_distros, game_values)
         return move_loss + value_loss
 	end
 
-	opt = Adam(0.0001)
 	
 	tensors = Float32.(tensors)
 	move_distros = Float32.(move_distros)
@@ -36,7 +35,7 @@ function train_batch(model::ChessNet, tensors, move_distros, game_values)
 end
 
 
-function train_on_dict(model::ChessNet, file_path::String, num_epochs::Int)
+function train_on_dict(model::ChessNet, file_path::String, num_epochs::Int, opt)
 	for epoch in 1:num_epochs
 		println("Epoch ", epoch)
 		files = readdir(file_path)
@@ -60,7 +59,7 @@ function train_on_dict(model::ChessNet, file_path::String, num_epochs::Int)
 			tensors = permutedims(cat(tensors..., dims=4), (2, 3, 1, 4))
 			move_distros = vcat(move_distros...)
 			println("Got to training!")
-			model = train_batch(model, tensors, move_distros, game_values)
+			model = train_batch(model, tensors, move_distros, game_values, opt)
 		end
 
 		model_save_path = "../models/supervised_model_$(epoch).jld2"
@@ -97,6 +96,7 @@ function train_with_stockfish(model::ChessNet, stockfish_path::String)
 	positions = Vector{String}()
 	values = Vector{Float64}()
 	policies = Vector{SparseVector{Float64}}()
+	opt = Adam(0.001)
 
 	for i in 1:10_000
 		board = startboard()
@@ -144,7 +144,7 @@ function train_with_stockfish(model::ChessNet, stockfish_path::String)
 				end
 				v_policies = vcat(v_policies...)
 				position_tensors = permutedims(cat(position_tensors..., dims=4), (2, 3, 1, 4))
-				model = train_batch(model, position_tensors, v_policies, values)
+				model = train_batch(model, position_tensors, v_policies, values, opt)
 				println(i)
 				positions = Vector{String}()
 				values = Vector{Float64}()
