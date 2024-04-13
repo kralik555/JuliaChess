@@ -14,8 +14,8 @@ mutable struct Node
 	value_sum::Float32
 	ucb::Float32
 
-	Node(game, args, parent=nothing, action_taken=nothing, prior=0.0, ucb=0.0) = 
-	new(game, args, parent, action_taken, prior, [], 0, 0.0, 0.0)
+	Node(game, args, parent=nothing, action_taken=nothing, prior=0.0, ucb=Inf) = 
+	new(game, args, parent, action_taken, prior, [], 0, 0.0, Inf)
 end
 
 
@@ -30,7 +30,7 @@ function get_ucb(child::Node, node::Node)
 	else
 	    q_value = child.value_sum / child.visit_count
     end
-	return q_value + node.args["C"] * sqrt(node.visit_count/(child.visit_count + 1)) * child.prior
+	return q_value + node.args["C"] * sqrt(2*log(node.visit_count + 1)/(child.visit_count + 1)) * child.prior
 end
 
 function get_ucb(node::Node)
@@ -40,18 +40,18 @@ end
 
 function update_ucb(node::Node)
 	q_value = node.value_sum / node.visit_count
-	node.ucb = q_value + node.args["C"] * sqrt(node.parent.visit_count/(node.visit_count + 1))
+	node.ucb = q_value + node.args["C"] * sqrt(2*log(node.parent.visit_count + 1)/(node.visit_count + 1)) * node.prior
 end
 
 
 function select(node::Node)
-	#best_child = maximum(get_ucb, node.children)
 	best_child = Nothing
 	best_ucb = -Inf
 	for child in node.children
-		ucb = get_ucb(child)
-		if ucb > best_ucb
+		ucb = get_ucb(child, node)
+		if ucb >= best_ucb
 			best_child = child
+			best_ucb = ucb
 		end
 	end
 	return best_child
@@ -124,9 +124,9 @@ function search(tree::MCTS)
 	action_probs = zeros(Float64, 4096)
 	for child in root.children
 		action_probs[child.action_taken] = child.visit_count
+		print(child.visit_count, " ")
 	end
 	action_probs = action_probs ./ sum(action_probs)
     return action_probs, root.value_sum / root.visit_count
 end
-
 

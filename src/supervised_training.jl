@@ -9,14 +9,12 @@ include("model.jl")
 include("board_class.jl")
 
 # ==============================================
-function temporal_difference(result::Float64, values::Vector{Float64}, gamma::Float64)
-end
-
 function train_batch(model::ChessNet, tensors, move_distros, game_values, opt)
 	function loss(x, y_moves, y_value)
 		y_pred_moves, y_pred_value = model.model(x)
  		move_loss = Flux.kldivergence(y_pred_moves, y_moves)
         value_loss = Flux.mse(y_pred_value, y_value)
+		println("Value loss: ", value_loss, "Policy loss: ", move_loss)
         return move_loss + value_loss
 	end
 
@@ -147,6 +145,7 @@ function train_with_stockfish(model::ChessNet, stockfish_path::String)
 				v_policies = vcat(v_policies...)
 				position_tensors = permutedims(cat(position_tensors..., dims=4), (2, 3, 1, 4))
 				model = train_batch(model, position_tensors, v_policies, values, opt)
+				JLD2.@save "../models/sp_stockfish_$(div(i, 1000)).jld2" model
 				println(i)
 				positions = Vector{String}()
 				values = Vector{Float64}()
@@ -163,5 +162,5 @@ end
 
 if abspath(PROGRAM_FILE) == @__FILE__
 	net = ChessNet()
-	train_with_stockfish(net, "../stockfish/stockfish.exe")
+	train_with_stockfish(net, "../stockfish/stockfish")
 end

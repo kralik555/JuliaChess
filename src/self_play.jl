@@ -81,6 +81,8 @@ function self_play_training(model::ChessNet, arguments::Dict{String, Float64}, p
     for game_num in 1:200
         if game_num > 100
             arr, result = training_self_game(model, positions[game_num - 100], arguments)
+        elseif game_num == 1
+            arr, result = training_self_game(model, fen(startboard()), arguments)
         else
             board = startboard()
             for i in 1:10
@@ -157,7 +159,7 @@ if abspath(PROGRAM_FILE) == @__FILE__
     end
     arguments = Dict{String, Float64}()
     arguments["num_searches"] = 200.0
-    arguments["C"] = 1.41
+    arguments["C"] = 2
     arguments["search_time"] = 1.0
     model.model(board_to_tensor(startboard()))
     for epoch in 1:100
