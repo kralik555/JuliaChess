@@ -19,8 +19,13 @@ function training_self_game(model::ChessNet, starting_position::String, args::Di
     game = SimpleGame(board)
     arr = Vector{Tuple{String, SparseVector{Float64}, Float64}}()
     pos_arr = Vector{String}()
-    is_repetition = false
     while !(isterminal(game))
+        if fen(game.board) in pos_arr
+            move = random(moves(game.board))
+            println(move, " was randomly chosen")
+            domove!(game, move)
+            continue
+        end
         probs, move, value = tree_move(model, game, args)
 		move = int_to_move(Int(only(move)))
         push!(arr, (fen(game.board), probs, only(value)))
@@ -29,28 +34,19 @@ function training_self_game(model::ChessNet, starting_position::String, args::Di
         domove!(game, move)
 	end
     result = 0
-    if is_repetition == false
-        result = game_result(game.board)
-    else
-        result = repetition_result(game.board)
-    end
+    result = game_result(game)
     println(result)
     return arr, result
 end
 	
 function update_dict(dict::Dict{String, Tuple{SparseVector{Float64}, Int, Float64}}, arr::Vector{Tuple{String, SparseVector{Float64}, Float64}}, result::Float64)
-    # https://www.gm.th-koeln.de/ciopwebpub/Kone15c.d/TR-TDgame_EN.pdf
-    γ = 0.9
-    alpha = 0.1
+    gamma = 0.9
     # temporal difference
-    for i in 1:size(arr)[1]
-        pos = size(arr)[1] - i + 1
-        if pos == size(arr)[1]
-            arr[pos] = (arr[pos][1], arr[pos][2], result)
-        else
-            delta = γ * arr[pos + 1][3] - arr[pos][3]
-            arr[pos] = (arr[pos][1], arr[pos][2], arr[pos][3] + alpha * delta)
-        end
+    arr[size(arr)[1]] = result
+    for i in 1:size(arr)[1] - 1
+        pos = size(arr)[1] - i
+        delta = gamma * arr[pos + 1][3] - arr[pos][3]
+        arr[pos] = (arr[pos][1], arr[pos][2], arr[pos][3] + delta)
     end
 
     dict_keys = collect(keys(dict))
@@ -156,7 +152,7 @@ if abspath(PROGRAM_FILE) == @__FILE__
     arguments = Dict{String, Float64}()
     arguments["num_searches"] = 200.0
     arguments["C"] = 1.41
-    arguments["search_time"] = 1.5
+    arguments["search_time"] = 1.0
     model.model(board_to_tensor(startboard()))
     model = self_play_training(model, arguments, "../data/common_games.txt")
     println("Time for training: ", time() - time0)

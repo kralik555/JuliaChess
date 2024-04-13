@@ -9,6 +9,8 @@ include("model.jl")
 include("board_class.jl")
 
 # ==============================================
+function temporal_difference(result::Float64, values::Vector{Float64}, gamma::Float64)
+end
 
 function train_batch(model::ChessNet, tensors, move_distros, game_values, opt)
 	function loss(x, y_moves, y_value)
