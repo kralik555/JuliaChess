@@ -13,7 +13,7 @@ include("board_class.jl")
 function train_batch(model::ChessNet, tensors, move_distros, game_values, opt)
 	function loss(x, y_moves, y_value)
 		y_pred_moves, y_pred_value = model.model(x)
- 		move_loss = Flux.crossentropy(y_pred_moves, y_moves)
+ 		move_loss = Flux.kldivergence(y_pred_moves, y_moves)
         value_loss = Flux.mse(y_pred_value, y_value)
         return move_loss + value_loss
 	end

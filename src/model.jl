@@ -64,9 +64,9 @@ function ChessNet()
     push!(layers, Dense(4096, 256, relu))
 
 
-    policy_head = Chain(Dense(256, 128, relu), Dropout(0.1), Dense(128, 256, relu), Dense(256, 4096), softmax)
+    policy_head = Chain(Dense(256, 128, relu), Dense(128, 256, relu), Dense(256, 4096), softmax)
 
-    value_head = Chain(Dense(256, 128, relu), Dropout(0.1), Dense(128, 64, relu), Dense(64, 1, tanh))
+    value_head = Chain(Dense(256, 128, relu), Dense(128, 64, relu), Dense(64, 1, tanh))
 
     combined_heads = CombinedHeads(policy_head, value_head)
 
