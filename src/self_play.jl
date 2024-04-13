@@ -74,7 +74,6 @@ function self_play_training(model::ChessNet, arguments::Dict{String, Float64}, p
         rm("temp", recursive=true)
         mkdir("temp")
     end
-    time0 = time()
     for game_num in 1:500
         if game_num > 400
             arr, result = training_self_game(model, positions[game_num - 900], arguments)
@@ -91,12 +90,11 @@ function self_play_training(model::ChessNet, arguments::Dict{String, Float64}, p
             end
             arr, result = training_self_game(model, fen(board), arguments)
         end
+        serialize("temp/data_$(Int64(game_num)).bin", (arr, result))
     end
-    println("Time: ", time() - time0)
-    serialize("temp/data_$(Int64(game_num)).bin", (arr, result))
     # train model on dict
     println("Finished games!")
-    model = training_on_games(models[1])
+    model = training_on_games(model)
     return model
 end
 
@@ -156,10 +154,9 @@ if abspath(PROGRAM_FILE) == @__FILE__
         JLD2.@load "../models/self_play_models/model_$(num_models).jld2" model
     end
     arguments = Dict{String, Float64}()
-    arguments["num_games"] = 200.0
-    arguments["num_searches"] = 100.0
-    arguments["C"] = 2.0
-    arguments["search_time"] = 1.0
+    arguments["num_searches"] = 200.0
+    arguments["C"] = 1.41
+    arguments["search_time"] = 1.5
     model.model(board_to_tensor(startboard()))
     model = self_play_training(model, arguments, "../data/common_games.txt")
     println("Time for training: ", time() - time0)
