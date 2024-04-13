@@ -21,7 +21,15 @@ function training_self_game(model::ChessNet, starting_position::String, args::Di
     pos_arr = Vector{String}()
     while !(isterminal(game))
         if fen(game.board) in pos_arr
-            move = random(moves(game.board))
+            move = rand(moves(game.board))
+            println(move, " was randomly chosen")
+            domove!(game, move)
+            continue
+        elseif rand() < 0.1
+            probs, _, value = tree_move(model, game, args)
+            push!(arr, (fen(game.board), probs, only(value)))
+            push!(pos_arr, fen(game.board))
+            move = rand(moves(game.board))
             println(move, " was randomly chosen")
             domove!(game, move)
             continue
@@ -70,9 +78,9 @@ function self_play_training(model::ChessNet, arguments::Dict{String, Float64}, p
         rm("temp", recursive=true)
         mkdir("temp")
     end
-    for game_num in 1:500
-        if game_num > 400
-            arr, result = training_self_game(model, positions[game_num - 900], arguments)
+    for game_num in 1:200
+        if game_num > 100
+            arr, result = training_self_game(model, positions[game_num - 100], arguments)
         else
             board = startboard()
             for i in 1:10
@@ -143,10 +151,8 @@ end
 if abspath(PROGRAM_FILE) == @__FILE__
     saved_models = readdir("../models/self_play_models")
     num_models = size(saved_models)[1]
-    if num_models == 0
-        #JLD2.@load "../models/supervised_model_1.jld2" model
-        model = ChessNet()
-    else
+    model = ChessNet()
+    if num_models != 0
         JLD2.@load "../models/self_play_models/model_$(num_models).jld2" model
     end
     arguments = Dict{String, Float64}()
@@ -154,6 +160,7 @@ if abspath(PROGRAM_FILE) == @__FILE__
     arguments["C"] = 1.41
     arguments["search_time"] = 1.0
     model.model(board_to_tensor(startboard()))
-    model = self_play_training(model, arguments, "../data/common_games.txt")
-    println("Time for training: ", time() - time0)
+    for epoch in 1:100
+        self_play_training(model, arguments, "../data/common_games.txt")
+    end
 end
