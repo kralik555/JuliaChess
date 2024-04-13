@@ -171,7 +171,7 @@ function change_value(value::Float64)
 	return value
 end
 
-function change_policy(policy::Vector{Float64})
+function change_policy(policy::Vector{Float64}, board::Board)
 	policy /= 1500
 	for p in policy
 		if p > 1
@@ -180,6 +180,9 @@ function change_policy(policy::Vector{Float64})
 			p = -1
 		end
 	end
+    if sidetomove(board) == BLACK
+        policy *= -1
+    end
 	exp_policy = exp.(policy .- maximum(policy))
 	return exp_policy / sum(exp_policy)
 end

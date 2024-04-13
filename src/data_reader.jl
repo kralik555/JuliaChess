@@ -104,7 +104,7 @@ function get_values_policies(file_path::String, save_path::String, stockfish_pat
 					position_value = minimum(move_values)
 				end
 				position_value = change_value(position_value)
-				changed_move_values = change_policy(move_values)
+				changed_move_values = change_policy(move_values, board)
 				policy = SparseVector(4096, move_indexes, changed_move_values)
 
 				pos_dict[f] = (policy, position_value)
