@@ -19,12 +19,10 @@ function training_self_game(model::ChessNet, starting_position::String, args::Di
     game = SimpleGame(board)
     arr = Vector{Tuple{String, SparseVector{Float64}, Float64}}()
     pos_arr = Vector{String}()
+    num_moves = 0
     while !(isterminal(game))
         if fen(game.board) in pos_arr
-            move = rand(moves(game.board))
-            println(move, " was randomly chosen")
-            domove!(game, move)
-            continue
+            break
         elseif rand() < 0.1
             probs, _, value = tree_move(model, game, args)
             push!(arr, (fen(game.board), probs, only(value)))
@@ -40,6 +38,9 @@ function training_self_game(model::ChessNet, starting_position::String, args::Di
         push!(pos_arr, fen(game.board))
         println(move)
         domove!(game, move)
+        if num_moves >= 100
+            break
+        end
 	end
     result = 0
     result = game_result(game)
@@ -75,8 +76,6 @@ function self_play_training(model::ChessNet, arguments::Dict{String, Float64}, p
     try
         mkdir("temp")
     catch e
-        rm("temp", recursive=true)
-        mkdir("temp")
     end
     for game_num in 1:200
         if game_num > 100
@@ -154,15 +153,18 @@ if abspath(PROGRAM_FILE) == @__FILE__
     saved_models = readdir("../models/self_play_models")
     num_models = size(saved_models)[1]
     model = ChessNet()
+    JLD2.@load "../models/sp_stockfish_10.jld2" model
     if num_models != 0
         JLD2.@load "../models/self_play_models/model_$(num_models).jld2" model
     end
     arguments = Dict{String, Float64}()
     arguments["num_searches"] = 200.0
     arguments["C"] = 2
-    arguments["search_time"] = 1.0
+    arguments["search_time"] = 2.0
     model.model(board_to_tensor(startboard()))
     for epoch in 1:100
+        println("Epoch ", epoch)
+        println("===================================")
         self_play_training(model, arguments, "../data/common_games.txt")
     end
 end

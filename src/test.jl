@@ -9,7 +9,7 @@ include("mcts.jl")
 include("moves.jl")
 include("data_reader.jl")
 
-function test_models(model1::ChessNet, model2::ChessNet, positions_file::String, args::Dict{String, Union{Int, Float64}})
+function test_models(model1::ChessNet, model2::ChessNet, positions_file::String, args::Dict{String, Float64})
 	model1_wins = 0
 	model2_wins = 0
 	draws = 0
@@ -45,7 +45,7 @@ function test_models(model1::ChessNet, model2::ChessNet, positions_file::String,
 	return (model1_wins, draws, model2_wins)
 end
 
-function play_game(model1::ChessNet, model2::ChessNet, game::SimpleGame, args::Dict{String, Union{Int64, Float64}})
+function play_game(model1::ChessNet, model2::ChessNet, game::SimpleGame, args::Dict{String, Float64})
     while !isterminal(game)
         probs, move, value = tree_move(model1, game, args)
         move = int_to_move(Int(only(move)))
@@ -91,19 +91,15 @@ end
 
 
 if abspath(PROGRAM_FILE) == @__FILE__
-	JLD2.@load "../models/sp_stockfish_2.jld2" model
+	JLD2.@load "../models/sp_stockfish_10.jld2" model
     model1 = model
     model = nothing
     JLD2.@load "../models/sp_stockfish_1.jld2" model
-    model2 = model
+    model2 = ChessNet()
     model = nothing
-    args = Dict{String, Union{Int, Float64}}("C" => 1.41, "num_searches" => 300, "search_time" => 3.0)
+    args = Dict{String, Float64}("C" => 1.41, "num_searches" => 200.0, "search_time" => 2.0)
     board = startboard()
     policy, value = model1.model(board_to_tensor(board))
-    for move in moves(board)
-        println(tostring(move), policy[encode_move(tostring(move))])
-    end
-    println(value)
     policy, value = model2.model(board_to_tensor(board))
     result = play_game(model1, model2, SimpleGame(board), args)
     println(result)

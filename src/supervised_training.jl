@@ -14,7 +14,7 @@ function train_batch(model::ChessNet, tensors, move_distros, game_values, opt)
 		y_pred_moves, y_pred_value = model.model(x)
  		move_loss = Flux.kldivergence(y_pred_moves, y_moves)
         value_loss = Flux.mse(y_pred_value, y_value)
-		println("Value loss: ", value_loss, "Policy loss: ", move_loss)
+		println("Value loss: ", value_loss, " Policy loss: ", move_loss)
         return move_loss + value_loss
 	end
 
@@ -96,12 +96,18 @@ function train_with_stockfish(model::ChessNet, stockfish_path::String)
 	positions = Vector{String}()
 	values = Vector{Float64}()
 	policies = Vector{SparseVector{Float64}}()
-	opt = Adam(0.001)
+	opt = Adam(0.01)
 
-	for i in 1:10_000
+	for i in 1:20_000
 		board = startboard()
 		setboard(engine, board)
         println(i)
+        if i == 500
+            opt.eta = 0.001
+        elseif i == 2000
+            opt.eta = 0.0001
+        end
+        played_moves = 0
 		while !isterminal(board)
 			push!(positions, fen(board))
 			engine_move_values = mpvsearch(board, engine, depth=8)
@@ -124,6 +130,7 @@ function train_with_stockfish(model::ChessNet, stockfish_path::String)
 				position_value = maximum(move_values)
 			else
 				position_value = minimum(move_values)
+                move_values *= -1
 			end
 			position_value = change_value(position_value)
 			changed_move_values = change_policy(move_values)
@@ -132,7 +139,7 @@ function train_with_stockfish(model::ChessNet, stockfish_path::String)
 			domove!(board, rand(moves(board)))
 			push!(values, position_value)
 			push!(policies, policy)
-			if length(positions) == 128
+			if length(positions) == 256
 				position_tensors = []
 				for position in positions
 					push!(position_tensors, create_input_tensors(fromfen(position)))
@@ -146,11 +153,14 @@ function train_with_stockfish(model::ChessNet, stockfish_path::String)
 				position_tensors = permutedims(cat(position_tensors..., dims=4), (2, 3, 1, 4))
 				model = train_batch(model, position_tensors, v_policies, values, opt)
 				JLD2.@save "../models/sp_stockfish_$(div(i, 1000)).jld2" model
-				println(i)
 				positions = Vector{String}()
 				values = Vector{Float64}()
 				policies = Vector{SparseVector{Float64}}()
 			end
+            played_moves += 1
+            if played_moves >= 100
+                break
+            end
 		end
 		if i % 1000 == 0
 			model_save_path = "../models/sp_stockfish_$(div(i, 1000)).jld2"
@@ -162,5 +172,5 @@ end
 
 if abspath(PROGRAM_FILE) == @__FILE__
 	net = ChessNet()
-	train_with_stockfish(net, "../stockfish/stockfish")
+	train_with_stockfish(net, "../stockfish/stockfish.exe")
 end

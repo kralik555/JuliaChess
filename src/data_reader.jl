@@ -102,6 +102,7 @@ function get_values_policies(file_path::String, save_path::String, stockfish_pat
 					position_value = maximum(move_values)
 				else
 					position_value = minimum(move_values)
+                    move_values *= -1
 				end
 				position_value = change_value(position_value)
 				changed_move_values = change_policy(move_values, board)

@@ -124,9 +124,9 @@ function search(tree::MCTS)
 	action_probs = zeros(Float64, 4096)
 	for child in root.children
 		action_probs[child.action_taken] = child.visit_count
-		print(child.visit_count, " ")
 	end
 	action_probs = action_probs ./ sum(action_probs)
+    print(searches, " ", time() - time0, " ")
     return action_probs, root.value_sum / root.visit_count
 end
 
