@@ -68,29 +68,6 @@ function train_on_dict(model::ChessNet, file_path::String, num_epochs::Int, opt)
 end
 
 
-function change_value(value::Float64)
-	value /= 1500
-	if value > 1
-		value = 1
-	elseif value < -1
-		value = -1
-	end
-	return value
-end
-
-function change_policy(policy::Vector{Float64})
-	policy /= 1500
-	for p in policy
-		if p > 1
-			p = 1
-		elseif p < -1
-			p = -1
-		end
-	end
-	exp_policy = exp.(policy .- maximum(policy))
-	return exp_policy / sum(exp_policy)
-end
-
 function train_with_stockfish(model::ChessNet, stockfish_path::String)
 	engine = runengine(stockfish_path)
 	positions = Vector{String}()
