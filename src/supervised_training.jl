@@ -110,7 +110,7 @@ function train_with_stockfish(model::ChessNet, stockfish_path::String)
                 move_values *= -1
 			end
 			position_value = change_value(position_value)
-			changed_move_values = change_policy(move_values)
+			changed_move_values = change_policy(move_values, board)
 			# policy and value changed to be between 0 and 1 and policy to make a probability distribution
 			policy = SparseVector(4096, move_indexes, changed_move_values)
 			domove!(board, rand(moves(board)))

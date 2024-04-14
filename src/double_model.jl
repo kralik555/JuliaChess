@@ -154,7 +154,7 @@ function train_with_stockfish(value_model::ValueNet, policy_model::PolicyNet, st
 				value = move_value.score.value
 				if move_value.score.ismate == true
 					value = 1500
-					if sidetomove(board) == BLACK
+					if move_value.score.value == -1
 						value = -1500
 					end
 				end
@@ -209,5 +209,5 @@ end
 if abspath(PROGRAM_FILE) == @__FILE__
     value_net = ValueNet()
     policy_net = PolicyNet()
-    train_with_stockfish(value_net, policy_net, "../stockfish/stockfish")
+    train_with_stockfish(value_net, policy_net, "../stockfish/stockfish.exe")
 end
