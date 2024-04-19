@@ -116,10 +116,9 @@ function get_values_policies(file_path::String, save_path::String, stockfish_pat
 			serialize("$(save_path)chunk_$(file_number).bin", pos_dict)
 			pos_dict = Dict{String, Tuple{SparseVector{Float64}, Float64}}()
 			file_number += 1
-		end
-	end
+        end
+    end
 end
-
 
 
 if abspath(PROGRAM_FILE) == @__FILE__

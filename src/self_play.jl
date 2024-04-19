@@ -90,9 +90,6 @@ function self_play_training(model::ChessNet, arguments::Dict{String, Float64}, p
                     break
                 end
             end
-            if size(moves(board))[1] == 0
-                continue
-            end
             arr, result = training_self_game(model, fen(board), arguments)
         end
         serialize("temp/data_$(Int64(game_num)).bin", (arr, result))
@@ -149,22 +146,58 @@ function train_model(model::ChessNet, dict::Dict{String, Tuple{SparseVector{Floa
 end
 
 
+function self_play_no_tree(model::ChessNet)
+    try
+        mkdir("temp")
+    catch e
+    end
+    for game_num in 1:100
+        states = Vector{String}()
+        moves = Vector{Integer}()
+        policies = Vector{SparseVector{Float32}}()
+        println(game_num)
+        board = startboard()
+        game = SimpleGame(board)
+        while !isterminal(game)
+            policy, value = model.model(board_to_tensor(board))
+            policy = policy[1]
+            println(size(get_valid_moves(game.board)))
+            policy *= Vector(get_valid_moves(game.board))
+            chosen_move = rand((1, 4096), ProbabilityWeights(policy))
+            push!(states, fen(game.board))
+            push!(moves, chosen_move)
+            push!(policies, SparseVector(policy))
+            move = int_to_move(chosen_move)
+            domove!(game, move)
+        end
+        result = game_result(game)
+        println(result)
+    end
+end
+
+
+
 if abspath(PROGRAM_FILE) == @__FILE__
-    saved_models = readdir("../models/self_play_models")
+    #=saved_models = readdir("../models/self_play_models")
     num_models = size(saved_models)[1]
     model = ChessNet()
-    JLD2.@load "../models/sp_stockfish_10.jld2" model
+    JLD2.@load "../models/random_stockfish_different_policy.jld2" model
     if num_models != 0
         JLD2.@load "../models/self_play_models/model_$(num_models).jld2" model
     end
+    model = ChessNet()
     arguments = Dict{String, Float64}()
     arguments["num_searches"] = 200.0
-    arguments["C"] = 2
+    arguments["C"] = 2.0
     arguments["search_time"] = 2.0
     model.model(board_to_tensor(startboard()))
-    for epoch in 1:100
+    for epoch in 1:10
         println("Epoch ", epoch)
         println("===================================")
         self_play_training(model, arguments, "../data/common_games.txt")
+    end=#
+    model = ChessNet()
+    for epoch in 1:1000
+        self_play_no_tree(model)
     end
 end

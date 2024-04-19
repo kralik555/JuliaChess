@@ -104,7 +104,7 @@ function get_legal_moves(board::Board)
 end
 
 function get_valid_moves(board::Board)
-	valid_moves = zeros(4096)
+    valid_moves = zeros(4096)
 	legal_moves = moves(board)
 	for move in legal_moves
 		move_pos = encode_move(tostring(move))
@@ -172,14 +172,14 @@ function change_value(value::Float64)
 end
 
 function change_policy(policy::Vector{Float64}, board::Board)
-	policy /= 1500
 	for p in policy
-		if p > 1
-			p = 1
-		elseif p < -1
-			p = -1
+		if p > 1500
+			p = 1500
+		elseif p < -1500
+			p = -1500
 		end
 	end
+	policy /= 500
     if sidetomove(board) == BLACK
         policy *= -1
     end

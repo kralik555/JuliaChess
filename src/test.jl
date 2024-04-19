@@ -50,6 +50,11 @@ function play_game(model1::ChessNet, model2::ChessNet, game::SimpleGame, args::D
         probs, move, value = tree_move(model1, game, args)
         move = int_to_move(Int(only(move)))
         println(tostring(move))
+        if ptype(pieceon(game.board, from(move))) == PAWN
+            if Chess.rank(to(move)) == 8 || Chess.rank(to(move)) == 1
+                move = Move(move.from, move.to, QUEEN)
+            end
+        end
         domove!(game, move)
         if isterminal(game)
             break
@@ -57,6 +62,11 @@ function play_game(model1::ChessNet, model2::ChessNet, game::SimpleGame, args::D
         probs, move, value = tree_move(model2, game, args)
         move = int_to_move(Int(only(move)))
         println(tostring(move))
+        if ptype(pieceon(game.board, from(move))) == PAWN
+            if Chess.rank(to(move)) == 8 || Chess.rank(to(move)) == 1
+                move = Move(move.from, move.to, QUEEN)
+            end
+        end
         domove!(game, move)
     end
 
@@ -65,7 +75,7 @@ function play_game(model1::ChessNet, model2::ChessNet, game::SimpleGame, args::D
     return result
 end
 
-function play_self_game(model::ChessNet, starting_position::String, args::Dict{String, Int64})
+function play_self_game(model::ChessNet, starting_position::String, args::Dict{String, Float64})
     if starting_position == ""
 		board = startboard()
 	else 
@@ -75,7 +85,7 @@ function play_self_game(model::ChessNet, starting_position::String, args::Dict{S
     game = SimpleGame(board)
 
     while !(isterminal(game))
-		move = tree_move(model, game, args)
+		policy, move, value = tree_move(model, game, args)
 		move = int_to_move(Int(only(move)))
 		println(move)
         domove!(game, move)
@@ -88,18 +98,50 @@ function play_self_game(model::ChessNet, starting_position::String, args::Dict{S
 	return result
 end
 
+function game_against_computer(model::ChessNet, args)
+    board = startboard()
+    game = SimpleGame(board)
+    while !isterminal(game)
+        move_str = readline()
+        move = movefromstring(move_str)
+        domove!(game, move)
+        if !(isterminal(game))
+            probs, move, value = tree_move(model, game, args)
+            move = int_to_move(Int(only(move)))
+            domove!(game, move)
+            println(move)
+        end
+    end
+
+    res = game.headers.:result
+    result = res == "1-0" ? 1 : res == "0-1" ? -1 : 0
+    println(result)
+end
 
 
 if abspath(PROGRAM_FILE) == @__FILE__
-	JLD2.@load "../models/sp_stockfish_10.jld2" model
-    model1 = model
-    model = nothing
-    JLD2.@load "../models/sp_stockfish_1.jld2" model
-    model2 = ChessNet()
-    model = nothing
     args = Dict{String, Float64}("C" => 1.41, "num_searches" => 200.0, "search_time" => 2.0)
+	JLD2.@load "../models/random_stockfish_different_policy_v2.jld2" model
+    policy, value = model.model(board_to_tensor(startboard()))
+    println(value)
+    for move in moves(startboard())
+        println(move, "\t", policy[encode_move(tostring(move))])
+    end
+    game_against_computer(model, args)
+    return
+    play_self_game(model, "", args)
+    model2 = model
+    model = nothing
+    JLD2.@load "../models/sp_stockfish_dataset.jld2" model
+    model1 = ChessNet()
+    model = nothing
     board = startboard()
     policy, value = model1.model(board_to_tensor(board))
+    for i in 1:4096
+        if int_to_move(i) in moves(startboard())
+            println(int_to_move(i), ": ", policy[i])
+        end
+    end
     policy, value = model2.model(board_to_tensor(board))
     result = play_game(model1, model2, SimpleGame(board), args)
     println(result)

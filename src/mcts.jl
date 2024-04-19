@@ -1,4 +1,5 @@
 using Chess
+using SparseArrays
 include("model.jl")
 include("board_class.jl")
 
@@ -63,6 +64,11 @@ function expand(node::Node, policy)
 		if prob > 0
 			move = int_to_move(move_idx)
 			child_state = deepcopy(node.game)
+            if ptype(pieceon(node.game.board, from(move))) == PAWN
+                if Chess.rank(to(move)) == 8 || Chess.rank(to(move)) == 1
+                    move = Move(move.from, move.to, QUEEN)
+                end
+            end
             domove!(child_state, move)
             child = Node(child_state, node.args, node, move_idx, prob, Inf)
 			push!(node.children, child)
@@ -121,7 +127,7 @@ function search(tree::MCTS)
 		backpropagate(node, value)
         searches += 1
 	end
-	action_probs = zeros(Float64, 4096)
+    action_probs = spzeros(Float64, 4096)
 	for child in root.children
 		action_probs[child.action_taken] = child.visit_count
 	end

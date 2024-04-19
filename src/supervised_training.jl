@@ -1,6 +1,7 @@
 using Flux
 using Chess
 using Chess.UCI
+using Chess.PGN
 using JLD2
 using Flux.Data: DataLoader
 using LinearAlgebra
@@ -73,29 +74,29 @@ function train_with_stockfish(model::ChessNet, stockfish_path::String)
 	positions = Vector{String}()
 	values = Vector{Float64}()
 	policies = Vector{SparseVector{Float64}}()
-	opt = Adam(0.01)
+	opt = Adam(0.001)
 
-	for i in 1:20_000
+	for i in 1:10_000
 		board = startboard()
 		setboard(engine, board)
         println(i)
         if i == 500
-            opt.eta = 0.001
+            opt.eta = 0.0001
         elseif i == 2000
             opt.eta = 0.0001
         end
         played_moves = 0
 		while !isterminal(board)
 			push!(positions, fen(board))
-			engine_move_values = mpvsearch(board, engine, depth=8)
+			engine_move_values = mpvsearch(board, engine, depth=10)
 			move_values = Vector{Float64}()
 			move_indexes = Vector{Int}()
 			for move_value in engine_move_values
-				move = move_value.pv[1]
+                move = move_value.pv[1]
 				value = move_value.score.value
 				if move_value.score.ismate == true
 					value = 1500
-					if sidetomove(board) == BLACK
+					if move_value.score.value == -1
 						value = -1500
 					end
 				end
@@ -129,7 +130,7 @@ function train_with_stockfish(model::ChessNet, stockfish_path::String)
 				v_policies = vcat(v_policies...)
 				position_tensors = permutedims(cat(position_tensors..., dims=4), (2, 3, 1, 4))
 				model = train_batch(model, position_tensors, v_policies, values, opt)
-				JLD2.@save "../models/sp_stockfish_$(div(i, 1000)).jld2" model
+				JLD2.@save "../models/random_stockfish_different_policy_v2.jld2" model
 				positions = Vector{String}()
 				values = Vector{Float64}()
 				policies = Vector{SparseVector{Float64}}()
@@ -139,15 +140,92 @@ function train_with_stockfish(model::ChessNet, stockfish_path::String)
                 break
             end
 		end
-		if i % 1000 == 0
-			model_save_path = "../models/sp_stockfish_$(div(i, 1000)).jld2"
-			JLD2.@save model_save_path model
+	end
+	quit(engine)
+end
+
+
+function train_with_stockfish_on_dataset(model::ChessNet, stockfish_path::String, file_path::String)
+	engine = runengine(stockfish_path)
+	positions = Vector{String}()
+	values = Vector{Float64}()
+	policies = Vector{SparseVector{Float64}}()
+	opt = Adam(0.01)
+    i = 1
+    for game in gamesinfile(file_path)
+		board = startboard()
+		setboard(engine, board)
+        println(i)
+        i += 1
+        if i == 500
+            opt.eta = 0.001
+        elseif i == 2000
+            opt.eta = 0.0001
+        end
+        played_moves = 0
+		for m in game.:history
+            move = m.move
+			if typeof(move) == Nothing || isterminal(game)
+				break
+			end
+			push!(positions, fen(board))
+			engine_move_values = mpvsearch(board, engine, depth=8)
+			move_values = Vector{Float64}()
+			move_indexes = Vector{Int}()
+			for move_value in engine_move_values
+                move = move_value.pv[1]
+				value = move_value.score.value
+				if move_value.score.ismate == true
+					value = 1500
+					if move_value.score.value == -1
+						value = -1500
+					end
+				end
+				push!(move_indexes, encode_move(tostring(move)))
+				push!(move_values, value)
+			end
+			position_value = 0.0
+			if sidetomove(board) == WHITE
+				position_value = maximum(move_values)
+			else
+				position_value = minimum(move_values)
+                move_values *= -1
+			end
+
+			position_value = change_value(position_value)
+			changed_move_values = change_policy(move_values, board)
+			policy = SparseVector(4096, move_indexes, changed_move_values)
+            move = m.move
+            domove!(board, move)
+			push!(values, position_value)
+			push!(policies, policy)
+
+			if length(positions) >= 128
+				position_tensors = []
+				for position in positions
+					push!(position_tensors, create_input_tensors(fromfen(position)))
+				end
+				v_policies = Vector{Any}()
+				for policy in policies
+					v_policy = Vector(policy)
+					push!(v_policies, reshape(v_policy, 1, :))
+				end
+				v_policies = vcat(v_policies...)
+				position_tensors = permutedims(cat(position_tensors..., dims=4), (2, 3, 1, 4))
+				model = train_batch(model, position_tensors, v_policies, values, opt)
+				JLD2.@save "../models/stockfish_dataset_new_policy.jld2" model
+				positions = Vector{String}()
+				values = Vector{Float64}()
+				policies = Vector{SparseVector{Float64}}()
+			end
 		end
 	end
 	quit(engine)
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__
-	net = ChessNet()
-	train_with_stockfish(net, "../stockfish/stockfish.exe")
+	model = ChessNet()
+    #JLD2.@load "../models/random_stockfish_different_policy.jld2" model
+	train_with_stockfish_on_dataset(model, "../stockfish/stockfish.exe", "../data/files/data_2016_02.pgn")
+    #train_with_stockfish(model, "../stockfish/stockfish.exe")
 end
