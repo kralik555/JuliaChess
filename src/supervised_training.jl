@@ -24,8 +24,11 @@ function train_batch(model::ChessNet, tensors, move_distros, game_values, opt)
 	move_distros = Float32.(move_distros)
 	game_values = Float32.(game_values)
 	game_values = reshape(game_values, 1, :)
-	move_distros = permutedims(move_distros, (2, 1))
+	#move_distros = permutedims(move_distros, (2, 1))
 
+    println(size(move_distros))
+    println(size(game_values))
+    println(size(tensors))
 	data_loader = DataLoader((tensors, move_distros, game_values), batchsize=128, shuffle=true)
 	
 	for (x_batch, y_move_batch, y_value_batch) in data_loader
@@ -223,9 +226,73 @@ function train_with_stockfish_on_dataset(model::ChessNet, stockfish_path::String
 	quit(engine)
 end
 
+
+function get_value(comment)
+    try
+        if '#' in comment
+            if '-' in comment
+                return -1
+            end
+            return 1
+        end
+        c = comment[9:length(comment)-2]
+        value = parse(Float64, c) / 100
+        if value > 1
+            return 1
+        elseif value < -1
+            return -1
+        end
+        return value
+    catch e
+        return 2
+    end
+end
+
+function train_model(model::ChessNet, states::Vector{String}(), values::Vector{Float64}(), moves::Vector{Integer}())
+
+end
+
+function train_on_dataset(model::ChessNet, file_path::String)
+    states = Vector{String}()
+    values = Vector{Float64}()
+    correct_moves = Vector{Integer}()
+    game_num = 1
+    for game in gamesinfile(file_path, annotations=true)
+        sg = SimpleGame(game)
+        game_node = game.root
+        if length(game_node.children) > 0
+            game_node = game_node.children[1]
+        end
+        if comment(game_node) == nothing
+            continue
+        end
+        println(game_num)
+        game_num += 1
+        for move in sg.:history[2:length(sg.:history)]
+            if length(game_node.children) == 0
+                break
+            end
+            c = comment(game_node)
+            f = fen(game_node.board)
+            m = move.move
+            value = get_value(c)
+            if value == 2
+                break
+            end
+            game_node = game_node.children[1]
+            push!(states, f)
+            push!(correct_moves, encode_move(tostring(m)))
+            push!(values, value)
+            if length(values) == 512
+                model = train_model(model, states, values, correct_moves)
+        end
+    end
+end
+
 if abspath(PROGRAM_FILE) == @__FILE__
 	model = ChessNet()
     #JLD2.@load "../models/random_stockfish_different_policy.jld2" model
-	train_with_stockfish_on_dataset(model, "../stockfish/stockfish.exe", "../data/files/data_2016_02.pgn")
+	#train_with_stockfish_on_dataset(model, "../stockfish/stockfish.exe", "../data/files/data_2016_02.pgn")
     #train_with_stockfish(model, "../stockfish/stockfish.exe")
+    train_on_dataset(model, "../data/files/data_2016_02.pgn")
 end

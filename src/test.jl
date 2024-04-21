@@ -120,13 +120,14 @@ end
 
 
 if abspath(PROGRAM_FILE) == @__FILE__
-    args = Dict{String, Float64}("C" => 1.41, "num_searches" => 200.0, "search_time" => 2.0)
-	JLD2.@load "../models/random_stockfish_different_policy_v2.jld2" model
+    args = Dict{String, Float64}("C" => 1.41, "num_searches" => 300.0, "search_time" => 3.0)
+	JLD2.@load "../models/stockfish_dataset_new_policy.jld2" model
     policy, value = model.model(board_to_tensor(startboard()))
     println(value)
     for move in moves(startboard())
         println(move, "\t", policy[encode_move(tostring(move))])
     end
+    play_self_game(model, fen(startboard()), args)
     game_against_computer(model, args)
     return
     play_self_game(model, "", args)

@@ -3,6 +3,7 @@ using MKL
 using Chess
 using SparseArrays
 using Serialization
+using StatsBase
 include("board_class.jl")
 include("mcts.jl")
 include("model.jl")
@@ -77,7 +78,7 @@ function self_play_training(model::ChessNet, arguments::Dict{String, Float64}, p
         mkdir("temp")
     catch e
     end
-    for game_num in 1:200
+   for game_num in 1:200
         if game_num > 100
             arr, result = training_self_game(model, positions[game_num - 100], arguments)
         elseif game_num == 1
@@ -93,6 +94,10 @@ function self_play_training(model::ChessNet, arguments::Dict{String, Float64}, p
             arr, result = training_self_game(model, fen(board), arguments)
         end
         serialize("temp/data_$(Int64(game_num)).bin", (arr, result))
+        if game_num % 10 == 0
+            model = train_on_games(model)
+            mkdir("temp")
+        end
     end
     # train model on dict
     println("Finished games!")
@@ -100,9 +105,8 @@ function self_play_training(model::ChessNet, arguments::Dict{String, Float64}, p
     return model
 end
 
-function training_on_games(model::ChessNet)
+function training_on_games(model::ChessNet, opt=Adam(0.001))
     files = readdir("temp")
-    num_files = size(files)[1]
     pos_dict = Dict{String, Tuple{SparseVector{Float64}, Int, Float64}}()
     for i in 1:200
         if !("data_$i.bin" in files)
@@ -146,33 +150,87 @@ function train_model(model::ChessNet, dict::Dict{String, Tuple{SparseVector{Floa
 end
 
 
-function self_play_no_tree(model::ChessNet)
-    try
-        mkdir("temp")
-    catch e
+function train_model_no_tree_games(model, states, move_distros, values, opt)
+    tensors = []
+    policies = []
+    for f in states
+        push!(tensors, board_to_tensor(fromfen(f)))
     end
+    for md in move_distros
+        push!(policies, reshape(md, 1, :))
+    end
+    tensors = permutedims(cat(tensors..., dims=4), (2, 3, 1, 4))
+    #move_distros = vcat(move_distros...)
+    model = train_batch(model, tensors, move_distros, values, opt)
+    return model
+end
+
+function change_arrays(states, moves, policies, values, result)
+    l = length(values)
+    gamma = 0.9
+    values[l] = result
+    for i in 1:(l - 1)
+        diff = values[l - i + 1] - values[l - i]
+        values[l - i] += gamma * diff
+    end
+    turn = 1
+    for i in 1:length(moves)
+        policy = policies[i]
+        adj = 1
+        if turn == result
+            adjustment = 1.02
+        elseif turn == -result
+            adjustment = 0.98
+        else
+            adjustment = 0.99
+        end
+
+        policy[moves[i]] *= adjustment
+        policy /= sum(policy)
+        
+        if turn == 1
+            turn = -1
+        else
+            turn = 1
+        end
+    end
+    return policies, values
+end
+
+function self_play_no_tree(model::ChessNet, opt)
     for game_num in 1:100
         states = Vector{String}()
-        moves = Vector{Integer}()
+        played_moves = Vector{Integer}()
         policies = Vector{SparseVector{Float32}}()
+        values = Vector{Float32}()
         println(game_num)
         board = startboard()
         game = SimpleGame(board)
         while !isterminal(game)
+            if fen(game.board) in states
+                move = rand(moves(game.board))
+                domove!(game, move)
+                continue
+            end
             policy, value = model.model(board_to_tensor(board))
             policy = policy[1]
-            println(size(get_valid_moves(game.board)))
-            policy *= Vector(get_valid_moves(game.board))
-            chosen_move = rand((1, 4096), ProbabilityWeights(policy))
+            policy *= get_valid_moves(game.board)
+            move = sample(1:4096, ProbabilityWeights(policy))
+            value = only(value)
+            push!(values, value)
             push!(states, fen(game.board))
-            push!(moves, chosen_move)
+            push!(played_moves, move)
             push!(policies, SparseVector(policy))
-            move = int_to_move(chosen_move)
-            domove!(game, move)
+            played_move = int_to_move(move)
+            println(played_move)
+            domove!(game, played_move)
         end
         result = game_result(game)
         println(result)
+        policies, values = change_arrays(states, played_moves, policies, values, result)
+        train_model_no_tree_games(model, states, policies, values, opt)
     end
+    return model
 end
 
 
@@ -182,7 +240,7 @@ if abspath(PROGRAM_FILE) == @__FILE__
     num_models = size(saved_models)[1]
     model = ChessNet()
     JLD2.@load "../models/random_stockfish_different_policy.jld2" model
-    if num_models != 0
+    if num_models !== 0
         JLD2.@load "../models/self_play_models/model_$(num_models).jld2" model
     end
     model = ChessNet()
@@ -197,7 +255,8 @@ if abspath(PROGRAM_FILE) == @__FILE__
         self_play_training(model, arguments, "../data/common_games.txt")
     end=#
     model = ChessNet()
+    opt = Adam(0.0001)
     for epoch in 1:1000
-        self_play_no_tree(model)
+        self_play_no_tree(model, opt)
     end
 end
