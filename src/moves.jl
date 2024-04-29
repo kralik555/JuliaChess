@@ -20,6 +20,7 @@ end
 
 function tree_move(model::ChessNet, game::SimpleGame, args::Dict{String, Float64})
 	tree = MCTS(game, args, model)
+    #move_probs, value = search_action_reduction(tree)
 	move_probs, value = search(tree)
     move = argmax(Vector(move_probs))
 	return move_probs, move, value

@@ -38,7 +38,8 @@ function training_self_game(model::ChessNet, starting_position::String, args::Di
         push!(arr, (fen(game.board), probs, only(value)))
         push!(pos_arr, fen(game.board))
         println(move)
-        domove!(game, move)
+        #domove!(game, move)
+        domove!(game, moves(game.board)[3])
         if num_moves >= 100
             break
         end
@@ -236,7 +237,7 @@ end
 
 
 if abspath(PROGRAM_FILE) == @__FILE__
-    #=saved_models = readdir("../models/self_play_models")
+    saved_models = readdir("../models/self_play_models")
     num_models = size(saved_models)[1]
     model = ChessNet()
     JLD2.@load "../models/random_stockfish_different_policy.jld2" model
@@ -245,15 +246,15 @@ if abspath(PROGRAM_FILE) == @__FILE__
     end
     model = ChessNet()
     arguments = Dict{String, Float64}()
-    arguments["num_searches"] = 200.0
-    arguments["C"] = 2.0
+    arguments["num_searches"] = 300.0
+    arguments["C"] = 1.41
     arguments["search_time"] = 2.0
     model.model(board_to_tensor(startboard()))
     for epoch in 1:10
         println("Epoch ", epoch)
         println("===================================")
         self_play_training(model, arguments, "../data/common_games.txt")
-    end=#
+    end
     model = ChessNet()
     opt = Adam(0.0001)
     for epoch in 1:1000

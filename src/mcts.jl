@@ -13,10 +13,10 @@ mutable struct Node
 	children::Vector{Node}
 	visit_count::Integer
 	value_sum::Float32
-	ucb::Float32
+	pruned_children::Vector{Node}
 
-	Node(game, args, parent=nothing, action_taken=nothing, prior=0.0, ucb=Inf) = 
-	new(game, args, parent, action_taken, prior, [], 0, 0.0, Inf)
+	Node(game, args, parent=nothing, action_taken=nothing, prior=0.0, pruned_children=[]) = 
+	new(game, args, parent, action_taken, prior, [], 0, 0.0, [])
 end
 
 
@@ -34,15 +34,6 @@ function get_ucb(child::Node, node::Node)
 	return q_value + node.args["C"] * sqrt(2*log(node.visit_count + 1)/(child.visit_count + 1)) * child.prior
 end
 
-function get_ucb(node::Node)
-	return node.ucb
-end
-
-
-function update_ucb(node::Node)
-	q_value = node.value_sum / node.visit_count
-	node.ucb = q_value + node.args["C"] * sqrt(2*log(node.parent.visit_count + 1)/(node.visit_count + 1)) * node.prior
-end
 
 
 function select(node::Node)
@@ -81,7 +72,6 @@ function backpropagate(node::Node, value::Union{Float32, Int64, Float64})
 	node.value_sum += value
 	node.visit_count += 1
 	if node.parent !== nothing
-		update_ucb(node)
 		backpropagate(node.parent, value)
 	end
 end
@@ -136,3 +126,53 @@ function search(tree::MCTS)
     return action_probs, root.value_sum / root.visit_count
 end
 
+function prune_worst_branches(node::Node, max_pruned::Int64)
+	children_value = Vector{Pair{Node, Float64}}()
+	children_value = [Pair{Node, Float64}(child, child.value_sum/child.visit_count) for child in node.children]
+	sort!(children_value, by=x->x.second)
+
+    pruned_nodes = map(first, children_value[1:max_pruned])
+	node.pruned_children = pruned_nodes
+
+	node.children = map(first, children_value[max_pruned+1:end])
+end
+
+function search_action_reduction(tree::MCTS)
+	root = Node(tree.game, tree.args)
+    time0 = time()
+    color = sidetomove(tree.game.board)
+    searches = 0
+    while time() - time0 < tree.args["search_time"]	&& searches < tree.args["num_searches"]
+		if searches == length(root.children) * 2
+			prune_worst_branches(root, div(length(root.children), 2))
+		end
+        node = root
+        value = 0.0
+		while is_fully_expanded(node)
+			node = select(node)
+		end
+		if !(isterminal(node.game))
+			policy, value = tree.model.model(board_to_tensor(node.game.board))
+			valid_moves = get_valid_moves(node.game.board)
+			policy = vec(policy)
+			policy = policy .* valid_moves
+			policy = policy ./ sum(policy) 
+			expand(node, policy)
+			value = only(value)
+        else
+            value = game_result(node.game)
+		end
+		if color == BLACK
+			value = -value
+		end
+		backpropagate(node, value)
+        searches += 1
+	end
+	action_probs = zeros(Float64, 4096)
+	for child in root.children
+		action_probs[child.action_taken] = child.visit_count
+	end
+	action_probs = action_probs ./ sum(action_probs)
+    print(searches, " ", time() - time0, " ")
+    return action_probs, root.value_sum / root.visit_count
+end
