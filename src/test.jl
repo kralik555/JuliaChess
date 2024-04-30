@@ -114,6 +114,7 @@ function game_against_computer(model::ChessNet, args)
     end
 
     res = game.headers.:result
+    println(res)
     result = res == "1-0" ? 1 : res == "0-1" ? -1 : 0
     println(result)
 end
@@ -121,13 +122,13 @@ end
 
 if abspath(PROGRAM_FILE) == @__FILE__
     args = Dict{String, Float64}("C" => 1.41, "num_searches" => 300.0, "search_time" => 3.0)
-	JLD2.@load "../models/stockfish_dataset_new_policy.jld2" model
+	JLD2.@load "../models/model_10.jld2" model
     policy, value = model.model(board_to_tensor(startboard()))
     println(value)
     for move in moves(startboard())
         println(move, "\t", policy[encode_move(tostring(move))])
     end
-    play_self_game(model, fen(startboard()), args)
+    #play_self_game(model, fen(startboard()), args)
     game_against_computer(model, args)
     return
     play_self_game(model, "", args)

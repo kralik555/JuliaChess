@@ -29,7 +29,7 @@ function train_batch(model::ChessNet, tensors, move_distros, game_values, opt)
     println(size(move_distros))
     println(size(game_values))
     println(size(tensors))
-	data_loader = DataLoader((tensors, move_distros, game_values), batchsize=128, shuffle=true)
+	data_loader = DataLoader((tensors, move_distros, game_values), batchsize=256, shuffle=true)
 	
 	for (x_batch, y_move_batch, y_value_batch) in data_loader
 		x_batch = Float32.(x_batch)
@@ -226,6 +226,73 @@ function train_with_stockfish_on_dataset(model::ChessNet, stockfish_path::String
 	quit(engine)
 end
 
+function create_dataset(file_path::String, stockfish_path::String)
+    function add_score(action_info)
+        searchinfo = parsesearchinfo(action_info)
+        if searchinfo.depth != 10
+            return
+        end
+        s = searchinfo.score
+        if s.ismate == true
+            if s.value < 0
+                push!(values, -1)
+                return
+            else
+                push!(values, 1)
+                return
+            end
+        end
+        value = max(s.value, -1500)
+        value = min(s.value, 1500)
+        push!(values, value/1500)
+    end
+
+    engine = runengine(stockfish_path)
+    states = Vector{String}()
+    moves = Vector{Integer}()
+    values = Vector{Float32}()
+    for game in gamesinfile(file_path)
+        board = startboard()
+        for m in game.:history
+            setboard(engine, board)
+            move = m.move
+            if typeof(move) == Nothing || isterminal(board)
+                break
+            end
+            if fen(board) in states
+                domove!(board, move)
+                continue
+            end
+            info = search(engine, "go depth 10", infoaction=add_score)
+            push!(states, fen(board))
+            push!(moves, encode_move(tostring(info.bestmove)))
+            domove!(board, move)
+            println(length(states), "\t", length(moves), "\t", length(values))
+            if length(states) == 1_024_000 || length(states) == 512_000
+                serialize("../data/files/evaluated_positions.bin", (states, moves, values))
+            end
+        end
+    end
+    quit(engine)
+    serialize("../data/files/evaluated_positions_full_dataset.bin", (states, moves, values))
+end
+
+function train_on_created_dataset(model::ChessNet, file_path::String, num_epochs::Int64, opt::Flux.Optimise.Adam)
+    states, moves, values = deserialize(file_path)
+    l = length(states)
+    batch_size = 256
+    for epoch in 1:num_epochs
+        for chunk_num in 0:div(l, batch_size) - 1
+            chunk_states = states[chunk_num * batch_size + 1:(chunk_num + 1) * batch_size]
+            chunk_moves = moves[chunk_num * batch_size + 1:(chunk_num + 1) * batch_size]
+            chunk_values = values[chunk_num * batch_size + 1:(chunk_num + 1) * batch_size]
+            model = train_model(model, chunk_states, Float64.(chunk_values), chunk_moves, opt)
+            JLD2.@save "../models/no_dilation/model_$(epoch).jld2" model
+            println((chunk_num + 1) * batch_size)
+        end
+    end
+    return model
+end
 
 function get_value(comment)
     try
@@ -248,52 +315,86 @@ function get_value(comment)
     end
 end
 
-function train_model(model::ChessNet, states::Vector{String}, values::Vector{Float64}, moves::Vector{Integer})
+function train_model(model::ChessNet, states::Vector{String}, values::Vector{Float64}, moves::Vector{Integer}, opt)
+	function loss(x, y_moves, y_value)
+		y_pred_moves, y_pred_value = model.model(x)
+ 		move_loss = Flux.crossentropy(y_pred_moves, y_moves)
 
+        y_pred_value = dropdims(y_pred_value; dims=1)
+        value_loss = Flux.mse(y_pred_value, y_value)
+		println("Value loss: ", value_loss, " Policy loss: ", move_loss)
+        return move_loss + value_loss
+	end
+
+    policies = Vector{Vector{Float32}}()
+    tensors = []
+    for state in states
+        tensor = board_to_tensor(fromfen(state))
+        push!(tensors, tensor)
+    end
+    for move in moves
+        policy = zeros(4096)
+        policy[move] = 1
+        push!(policies, Float32.(policy))
+    end
+    tensors = permutedims(cat(tensors..., dims=4), (1, 2, 3, 4))
+    policies = hcat(policies...)
+    data_loader = DataLoader((tensors, policies, values), batchsize=256, shuffle=true)
+	
+	for (x_batch, y_move_batch, y_value_batch) in data_loader
+		Flux.train!(loss, Flux.params(model.model), [(x_batch, y_move_batch, y_value_batch)], opt)
+	end
+	return model
 end
 
-function train_on_dataset(model::ChessNet, file_path::String)
+function train_on_dataset(model::ChessNet, file_path::String, opt)
     states = Vector{String}()
     values = Vector{Float64}()
     correct_moves = Vector{Integer}()
-    game_num = 1
-    for game in gamesinfile(file_path, annotations=true)
-        sg = SimpleGame(game)
-        game_node = game.root
-        if length(game_node.children) > 0
-            game_node = game_node.children[1]
-        end
-        if comment(game_node) == nothing
-            continue
-        end
-        println(game_num)
-        game_num += 1
-        for move in sg.:history[2:length(sg.:history)]
-            if length(game_node.children) == 0
-                break
+    for epoch in 1:10
+        game_num = 1
+        for game in gamesinfile(file_path, annotations=true)
+            sg = SimpleGame(game)
+            game_node = game.root
+            if length(game_node.children) > 0
+                game_node = game_node.children[1]
             end
-            c = comment(game_node)
-            f = fen(game_node.board)
-            m = move.move
-            value = get_value(c)
-            if value == 2
-                break
+            if comment(game_node) == nothing
+                continue
             end
-            game_node = game_node.children[1]
-            push!(states, f)
-            push!(correct_moves, encode_move(tostring(m)))
-            push!(values, value)
-            if length(values) == 512
-                model = train_model(model, states, values, correct_moves)
-			end
+            println(game_num)
+            game_num += 1
+            for move in sg.:history[2:length(sg.:history)]
+                if length(game_node.children) == 0
+                    break
+                end
+                c = comment(game_node)
+                f = fen(game_node.board)
+                m = move.move
+                value = get_value(c)
+                if value == 2
+                    break
+                end
+                game_node = game_node.children[1]
+                push!(states, f)
+                push!(correct_moves, encode_move(tostring(m)))
+                push!(values, value)
+                if length(values) == 256
+                    model = train_model(model, states, values, correct_moves, opt)
+                    states = Vector{String}()
+                    values = Vector{Float64}()
+                    correct_moves = Vector{Integer}()
+                    save_path = "../models/supervised_model_$(epoch).jld2"
+                    JLD2.@save save_path model
+                end
+            end
         end
     end
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__
 	model = ChessNet()
-    #JLD2.@load "../models/random_stockfish_different_policy.jld2" model
-	#train_with_stockfish_on_dataset(model, "../stockfish/stockfish.exe", "../data/files/data_2016_02.pgn")
-    #train_with_stockfish(model, "../stockfish/stockfish.exe")
-    train_on_dataset(model, "../data/files/data_2016_02.pgn")
+    #JLD2.@load "../models/model_7.jld2" model
+    opt = Adam(0.0001)
+    train_on_created_dataset(model, "../data/files/evaluated_positions.bin", 10, opt)
 end

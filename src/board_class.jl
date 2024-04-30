@@ -123,9 +123,9 @@ function board_to_tensor(board::Board)
 end
 
 function game_result(game::SimpleGame)
-    res = game.headers.:result
-    result = res == "1-0" ? 1.0 : res == "0-1" ? -1.0 : 0.0
-    return result
+    if ischeckmate(game)
+        return sidetomove(game.board) == WHITE ? -1 : 1
+    return 0
 end
 
 
