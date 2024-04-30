@@ -13,11 +13,11 @@ mutable struct Node
 	children::Vector{Node}
 	visit_count::Integer
 	value_sum::Float32
-	q_value::Float64
 	pruned_children::Vector{Node}
+    q_value::Float64
 
-	Node(game, args, parent=nothing, action_taken=nothing, prior=0.0, q_value=Inf, pruned_children=[]) = 
-	new(game, args, parent, action_taken, prior, [], 0, 0.0, Inf, [])
+	Node(game, args, parent=nothing, action_taken=nothing, prior=0.0, pruned_children=[], q_value=0.0) = 
+	new(game, args, parent, action_taken, prior, [], 0, 0.0, [], 10 + prior)
 end
 
 

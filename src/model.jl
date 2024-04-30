@@ -49,7 +49,11 @@ function ChessNet()
     push!(layers, relu)
     push!(layers, Dropout(0.1))
 
-    push!(layers, Conv((3, 3), 128=>256, pad=(1,1), stride=(1,1)))
+    push!(layers, Conv((3, 3), 128=>128, pad=(2,2), stride=(1,1), dilation=(2,2)))
+    push!(layers, BatchNorm(128))
+    push!(layers, relu)
+
+    push!(layers, Conv((3, 3), 128=>256, pad=(2,2), stride=(1,1), dilation=(2,2)))
     push!(layers, BatchNorm(256))
     push!(layers, relu)
 
