@@ -248,7 +248,7 @@ function get_value(comment)
     end
 end
 
-function train_model(model::ChessNet, states::Vector{String}(), values::Vector{Float64}(), moves::Vector{Integer}())
+function train_model(model::ChessNet, states::Vector{String}, values::Vector{Float64}, moves::Vector{Integer})
 
 end
 
@@ -285,6 +285,7 @@ function train_on_dataset(model::ChessNet, file_path::String)
             push!(values, value)
             if length(values) == 512
                 model = train_model(model, states, values, correct_moves)
+			end
         end
     end
 end

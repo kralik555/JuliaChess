@@ -13,10 +13,11 @@ mutable struct Node
 	children::Vector{Node}
 	visit_count::Integer
 	value_sum::Float32
+	q_value::Float64
 	pruned_children::Vector{Node}
 
-	Node(game, args, parent=nothing, action_taken=nothing, prior=0.0, pruned_children=[]) = 
-	new(game, args, parent, action_taken, prior, [], 0, 0.0, [])
+	Node(game, args, parent=nothing, action_taken=nothing, prior=0.0, q_value=Inf, pruned_children=[]) = 
+	new(game, args, parent, action_taken, prior, [], 0, 0.0, Inf, [])
 end
 
 
@@ -26,12 +27,7 @@ end
 
 
 function get_ucb(child::Node, node::Node)
-	if child.visit_count == 0
-        q_value = Inf
-	else
-	    q_value = child.value_sum / child.visit_count
-    end
-	return q_value + node.args["C"] * sqrt(2*log(node.visit_count + 1)/(child.visit_count + 1)) * child.prior
+	return child.q_value + node.args["C"] * sqrt(2*log(node.visit_count + 1)/(child.visit_count + 1)) * child.prior
 end
 
 
@@ -61,7 +57,7 @@ function expand(node::Node, policy)
                 end
             end
             domove!(child_state, move)
-            child = Node(child_state, node.args, node, move_idx, prob, Inf)
+            child = Node(child_state, node.args, node, move_idx, prob)
 			push!(node.children, child)
 		end
 	end
@@ -71,6 +67,7 @@ end
 function backpropagate(node::Node, value::Union{Float32, Int64, Float64})
 	node.value_sum += value
 	node.visit_count += 1
+	node.q_value = node.value_sum / node.visit_count
 	if node.parent !== nothing
 		backpropagate(node.parent, value)
 	end

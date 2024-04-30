@@ -8,3 +8,7 @@ https://commons.wikimedia.org/wiki/Category:SVG_chess_pieces
 
 https://arxiv.org/pdf/2210.12628.pdf - mcts speed up - mcts speed up
 https://arxiv.org/pdf/2210.12628.pdf
+
+
+cíle na začátku
+závěr a zhodnocení na konci, jestli jsem udělal co jsem měl

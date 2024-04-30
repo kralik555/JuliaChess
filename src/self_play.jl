@@ -240,7 +240,7 @@ if abspath(PROGRAM_FILE) == @__FILE__
     saved_models = readdir("../models/self_play_models")
     num_models = size(saved_models)[1]
     model = ChessNet()
-    JLD2.@load "../models/random_stockfish_different_policy.jld2" model
+    #JLD2.@load "../models/random_stockfish_different_policy.jld2" model
     if num_models !== 0
         JLD2.@load "../models/self_play_models/model_$(num_models).jld2" model
     end
