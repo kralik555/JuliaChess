@@ -125,6 +125,7 @@ end
 function game_result(game::SimpleGame)
     if ischeckmate(game)
         return sidetomove(game.board) == WHITE ? -1 : 1
+    end
     return 0
 end
 

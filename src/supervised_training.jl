@@ -15,8 +15,8 @@ function train_batch(model::ChessNet, tensors, move_distros, game_values, opt)
 		y_pred_moves, y_pred_value = model.model(x)
  		move_loss = Flux.kldivergence(y_pred_moves, y_moves)
         value_loss = Flux.mse(y_pred_value, y_value)
-		println("Value loss: ", value_loss, " Policy loss: ", move_loss)
-        return move_loss + value_loss
+		println("Value loss: ", 40 * value_loss, " Policy loss: ", move_loss)
+        return move_loss + 40 * value_loss
 	end
 
 	
@@ -287,7 +287,7 @@ function train_on_created_dataset(model::ChessNet, file_path::String, num_epochs
             chunk_moves = moves[chunk_num * batch_size + 1:(chunk_num + 1) * batch_size]
             chunk_values = values[chunk_num * batch_size + 1:(chunk_num + 1) * batch_size]
             model = train_model(model, chunk_states, Float64.(chunk_values), chunk_moves, opt)
-            JLD2.@save "../models/no_dilation/model_$(epoch).jld2" model
+            JLD2.@save "../models/no_pooling/model_$(epoch).jld2" model
             println((chunk_num + 1) * batch_size)
         end
     end
@@ -322,8 +322,8 @@ function train_model(model::ChessNet, states::Vector{String}, values::Vector{Flo
 
         y_pred_value = dropdims(y_pred_value; dims=1)
         value_loss = Flux.mse(y_pred_value, y_value)
-		println("Value loss: ", value_loss, " Policy loss: ", move_loss)
-        return move_loss + value_loss
+		println("Value loss: ", 40 * value_loss, " Policy loss: ", move_loss)
+        return move_loss + 40 * value_loss
 	end
 
     policies = Vector{Vector{Float32}}()

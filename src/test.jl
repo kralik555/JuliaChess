@@ -91,10 +91,9 @@ function play_self_game(model::ChessNet, starting_position::String, args::Dict{S
         domove!(game, move)
     end
 	
-    result = 0
-    res = game.headers.:result
-    result = res == "1-0" ? 1 : res == "0-1" ? -1 : 0
+    result = game_result(game)
     println("Result of the game: ", result)
+    println(lichessurl(game.board))
 	return result
 end
 
@@ -122,13 +121,13 @@ end
 
 if abspath(PROGRAM_FILE) == @__FILE__
     args = Dict{String, Float64}("C" => 1.41, "num_searches" => 300.0, "search_time" => 3.0)
-	JLD2.@load "../models/model_10.jld2" model
+	JLD2.@load "../models/no_pooling/model_10.jld2" model
     policy, value = model.model(board_to_tensor(startboard()))
     println(value)
     for move in moves(startboard())
         println(move, "\t", policy[encode_move(tostring(move))])
     end
-    #play_self_game(model, fen(startboard()), args)
+    play_self_game(model, fen(startboard()), args)
     game_against_computer(model, args)
     return
     play_self_game(model, "", args)
