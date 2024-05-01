@@ -127,7 +127,7 @@ if abspath(PROGRAM_FILE) == @__FILE__
     for move in moves(startboard())
         println(move, "\t", policy[encode_move(tostring(move))])
     end
-    play_self_game(model, fen(startboard()), args)
+    #play_self_game(model, fen(startboard()), args)
     game_against_computer(model, args)
     return
     play_self_game(model, "", args)
