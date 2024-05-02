@@ -70,8 +70,7 @@ function play_game(model1::ChessNet, model2::ChessNet, game::SimpleGame, args::D
         domove!(game, move)
     end
 
-    res = game.headers.:result
-    result = res == "1-0" ? 1 : res == "0-1" ? -1 : 0
+    result = game_result(game)
     return result
 end
 
@@ -118,22 +117,13 @@ end
 
 
 if abspath(PROGRAM_FILE) == @__FILE__
-    args = Dict{String, Float64}("C" => 1.41, "num_searches" => 300.0, "search_time" => 3.0)
-	JLD2.@load "../models/dilation_models/model_11.jld2" model
-    policy, value = model.model(board_to_tensor(startboard()))
-    println(value)
-    for move in moves(startboard())
-        println(move, "\t", policy[encode_move(tostring(move))])
-    end
-    #play_self_game(model, fen(startboard()), args)
-    game_against_computer(model, args)
-    return
-    play_self_game(model, "", args)
+    args = Dict{String, Float64}("C" => 1.41, "num_searches" => 500.0, "search_time" => 5.0)
+	JLD2.@load "../models/bigger_filter/model_7.jld2" model
+    #game_against_computer(model, args)
+    model1 = model
+    model = nothing
+    JLD2.@load "../models/dilation_models/model_11.jld2" model
     model2 = model
-    model = nothing
-    JLD2.@load "../models/sp_stockfish_dataset.jld2" model
-    model1 = ChessNet()
-    model = nothing
     board = startboard()
     policy, value = model1.model(board_to_tensor(board))
     for i in 1:4096
@@ -142,8 +132,8 @@ if abspath(PROGRAM_FILE) == @__FILE__
         end
     end
     policy, value = model2.model(board_to_tensor(board))
-    result = play_game(model1, model2, SimpleGame(board), args)
+    result = play_game(model1, model2, SimpleGame(startboard()), args)
     println(result)
-    result = play_game(model2, model1, SimpleGame(board), args)
+    result = play_game(model2, model1, SimpleGame(startboard()), args)
     println(result)
 end
