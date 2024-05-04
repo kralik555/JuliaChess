@@ -4,12 +4,13 @@ using Chess
 using SparseArrays
 using Serialization
 using StatsBase
+using Flux.Data: DataLoader
+using JLD2
 include("board_class.jl")
 include("mcts.jl")
 include("model.jl")
 include("test.jl")
 include("data_reader.jl")
-include("supervised_training.jl")
 
 function training_self_game(model::ChessNet, starting_position::String, args::Dict{String, Float64})
     if starting_position == ""
@@ -150,33 +151,42 @@ function train_model(model::ChessNet, dict::Dict{String, Tuple{SparseVector{Floa
     return model
 end
 
-function train_batch_with_predictions(model, tensors, move_distros, value, opt, predicted_distros, predicted_values)
+function train_batch_sp(model, tensors, policies, values, opt)
+	function loss(x, y_moves, y_value)
+		y_pred_moves, y_pred_value = model.model(x)
+ 		move_loss = Flux.crossentropy(y_pred_moves, y_moves)
+
+        y_pred_value = dropdims(y_pred_value; dims=1)
+        value_loss = Flux.mse(y_pred_value, y_value)
+        return move_loss + 40 * value_loss
+	end
+
+    data_loader = DataLoader((tensors, policies, values), batchsize=length(values), shuffle=true)
+	
+	for (x_batch, y_move_batch, y_value_batch) in data_loader
+		Flux.train!(loss, Flux.params(model.model), [(x_batch, y_move_batch, y_value_batch)], opt)
+	end
 end
 
-function train_model_no_tree_games(model, states, move_distros, values, opt)
+function train_model_no_tree_games(model, states, correct_policies, correct_values, opt)
     tensors = []
-    policies = []
     for f in states
         push!(tensors, board_to_tensor(fromfen(f)))
     end
-    #=for md in move_distros
-        push!(policies, reshape(md, 1, :))
-    end=#
-    println(size(tensors))
     tensors = permutedims(cat(tensors..., dims=4), (1, 2, 3, 4))
-    println(size(tensors))
-    model = train_batch(model, tensors, move_distros, values, opt)
+    model = train_batch_sp(model, tensors, correct_policies, correct_values, opt)
     return model
 end
 
 function change_arrays(states, moves, policies, values, result)
     new_policies = Vector{Vector{Float32}}()
+    new_values = copy(values)
     l = length(values)
     gamma = 0.9
-    values[l] = result
+    new_values[l] = result
     for i in 1:(l - 1)
-        diff = values[l - i + 1] - values[l - i]
-        values[l - i] += gamma * diff
+        diff = new_values[l - i + 1] - new_values[l - i]
+        new_values[l - i] += gamma * diff
     end
     turn = 1
     for i in 1:length(moves)
@@ -201,7 +211,7 @@ function change_arrays(states, moves, policies, values, result)
         end
     end
     new_policies = hcat(new_policies...)
-    return new_policies, values
+    return new_policies, new_values
 end
 
 function self_play_no_tree(model::ChessNet, opt)
@@ -210,17 +220,19 @@ function self_play_no_tree(model::ChessNet, opt)
         played_moves = Vector{Integer}()
         policies = Vector{SparseVector{Float32}}()
         values = Vector{Float32}()
-        println(game_num)
+        println("Game ", game_num)
         board = startboard()
         game = SimpleGame(board)
         while !isterminal(game)
             if fen(game.board) in states
                 move = rand(moves(game.board))
                 domove!(game, move)
-                println("random move")
                 continue
             end
             can_end = false
+            if length(moves(game.board)) == 0
+                break
+            end
             for m in moves(game.board)
                 undoinfo = domove!(game.board, m)
                 if ischeckmate(game)
@@ -230,7 +242,6 @@ function self_play_no_tree(model::ChessNet, opt)
                 undomove!(game.board, undoinfo)
             end
             if can_end
-                println("found checkmate")
                 break
             end
             policy, value = model.model(board_to_tensor(board))
@@ -243,7 +254,6 @@ function self_play_no_tree(model::ChessNet, opt)
             push!(played_moves, move)
             push!(policies, SparseVector(policy))
             played_move = int_to_move(move)
-            println(played_move)
             domove!(game, played_move)
         end
         result = game_result(game)
