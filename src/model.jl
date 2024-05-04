@@ -42,23 +42,22 @@ function ChessNet()
     push!(layers, Conv((3, 3), 32=>64, pad=(1,1), stride=(1,1)))
     push!(layers, BatchNorm(64))
     push!(layers, relu)
-    push!(layers, Dropout(0.1))
     
     push!(layers, Conv((3, 3), 64=>128, pad=(1,1), stride=(1,1)))
     push!(layers, BatchNorm(128))
     push!(layers, relu)
-    push!(layers, Dropout(0.1))
 
     push!(layers, Conv((3, 3), 128=>128, pad=(1,1), stride=(1,1)))
     push!(layers, BatchNorm(128))
     push!(layers, relu)
-    push!(layers, Dropout(0.1))
 
-    push!(layers, Conv((5, 5), 128=>256, pad=(0,0), stride=(1,1)))
+    push!(layers, Conv((5, 5), 128=>256, pad=(2,2), stride=(1,1)))
     push!(layers, BatchNorm(256))
     push!(layers, relu)
 
     push!(layers, Flux.flatten)
+
+    push!(layers, Dense(16384, 4096, relu))
 
     policy_head = Chain(Dense(4096, 4096), softmax)
 

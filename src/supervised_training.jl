@@ -19,9 +19,12 @@ function train_batch(model::ChessNet, tensors, move_distros, game_values, opt)
         return move_loss + 40 * value_loss
 	end
 
-	
+    println(size(tensors))
 	tensors = Float32.(tensors)
-	move_distros = Float32.(move_distros)
+	try
+        move_distros = Float32.(move_distros)
+    catch e
+    end
 	game_values = Float32.(game_values)
 	game_values = reshape(game_values, 1, :)
 	#move_distros = permutedims(move_distros, (2, 1))
@@ -281,13 +284,13 @@ function train_on_created_dataset(model::ChessNet, file_path::String, num_epochs
     states, moves, values = deserialize(file_path)
     l = length(states)
     batch_size = 256
-    for epoch in 11:num_epochs
+    for epoch in 1:num_epochs
         for chunk_num in 0:div(l, batch_size) - 1
             chunk_states = states[chunk_num * batch_size + 1:(chunk_num + 1) * batch_size]
             chunk_moves = moves[chunk_num * batch_size + 1:(chunk_num + 1) * batch_size]
             chunk_values = values[chunk_num * batch_size + 1:(chunk_num + 1) * batch_size]
             model = train_model(model, chunk_states, Float64.(chunk_values), chunk_moves, opt)
-            JLD2.@save "../models/bigger_filter/model_$(epoch).jld2" model
+            JLD2.@save "../models/big_models/model_$(epoch).jld2" model
             println((chunk_num + 1) * batch_size)
         end
     end
@@ -394,7 +397,7 @@ end
 
 if abspath(PROGRAM_FILE) == @__FILE__
 	model = ChessNet()
-    JLD2.@load "../models/bigger_filter/model_10.jld2" model
+    #JLD2.@load "../models/bigger_filter/model_10.jld2" model
     opt = Adam(0.0001)
     train_on_created_dataset(model, "../data/files/evaluated_positions.bin", 20, opt)
 end

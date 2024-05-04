@@ -150,6 +150,8 @@ function train_model(model::ChessNet, dict::Dict{String, Tuple{SparseVector{Floa
     return model
 end
 
+function train_batch_with_predictions(model, tensors, move_distros, value, opt, predicted_distros, predicted_values)
+end
 
 function train_model_no_tree_games(model, states, move_distros, values, opt)
     tensors = []
@@ -157,16 +159,18 @@ function train_model_no_tree_games(model, states, move_distros, values, opt)
     for f in states
         push!(tensors, board_to_tensor(fromfen(f)))
     end
-    for md in move_distros
+    #=for md in move_distros
         push!(policies, reshape(md, 1, :))
-    end
-    tensors = permutedims(cat(tensors..., dims=4), (2, 3, 1, 4))
-    #move_distros = vcat(move_distros...)
+    end=#
+    println(size(tensors))
+    tensors = permutedims(cat(tensors..., dims=4), (1, 2, 3, 4))
+    println(size(tensors))
     model = train_batch(model, tensors, move_distros, values, opt)
     return model
 end
 
 function change_arrays(states, moves, policies, values, result)
+    new_policies = Vector{Vector{Float32}}()
     l = length(values)
     gamma = 0.9
     values[l] = result
@@ -176,7 +180,7 @@ function change_arrays(states, moves, policies, values, result)
     end
     turn = 1
     for i in 1:length(moves)
-        policy = policies[i]
+        policy = Vector(policies[i])
         adj = 1
         if turn == result
             adjustment = 1.02
@@ -188,6 +192,7 @@ function change_arrays(states, moves, policies, values, result)
 
         policy[moves[i]] *= adjustment
         policy /= sum(policy)
+        push!(new_policies, policy)
         
         if turn == 1
             turn = -1
@@ -195,7 +200,8 @@ function change_arrays(states, moves, policies, values, result)
             turn = 1
         end
     end
-    return policies, values
+    new_policies = hcat(new_policies...)
+    return new_policies, values
 end
 
 function self_play_no_tree(model::ChessNet, opt)
@@ -211,7 +217,21 @@ function self_play_no_tree(model::ChessNet, opt)
             if fen(game.board) in states
                 move = rand(moves(game.board))
                 domove!(game, move)
+                println("random move")
                 continue
+            end
+            can_end = false
+            for m in moves(game.board)
+                undoinfo = domove!(game.board, m)
+                if ischeckmate(game)
+                    can_end = true
+                    break
+                end
+                undomove!(game.board, undoinfo)
+            end
+            if can_end
+                println("found checkmate")
+                break
             end
             policy, value = model.model(board_to_tensor(board))
             policy = policy[1]
@@ -228,19 +248,17 @@ function self_play_no_tree(model::ChessNet, opt)
         end
         result = game_result(game)
         println(result)
-        policies, values = change_arrays(states, played_moves, policies, values, result)
-        train_model_no_tree_games(model, states, policies, values, opt)
+        new_policies, new_values = change_arrays(states, played_moves, policies, values, result)
+        train_model_no_tree_games(model, states, new_policies, new_values, opt)
     end
     return model
 end
-
-
 
 if abspath(PROGRAM_FILE) == @__FILE__
     saved_models = readdir("../models/self_play_models")
     num_models = size(saved_models)[1]
     model = ChessNet()
-    #JLD2.@load "../models/random_stockfish_different_policy.jld2" model
+    #JLD2.@load "../models/bigger_filter/model_15.jld2" model
     if num_models !== 0
         JLD2.@load "../models/self_play_models/model_$(num_models).jld2" model
     end
@@ -250,11 +268,11 @@ if abspath(PROGRAM_FILE) == @__FILE__
     arguments["C"] = 1.41
     arguments["search_time"] = 2.0
     model.model(board_to_tensor(startboard()))
-    for epoch in 1:10
+    #=for epoch in 1:10
         println("Epoch ", epoch)
         println("===================================")
         self_play_training(model, arguments, "../data/common_games.txt")
-    end
+    end=#
     model = ChessNet()
     opt = Adam(0.0001)
     for epoch in 1:1000

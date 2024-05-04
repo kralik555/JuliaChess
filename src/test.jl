@@ -117,8 +117,8 @@ end
 
 
 if abspath(PROGRAM_FILE) == @__FILE__
-    args = Dict{String, Float64}("C" => 1.41, "num_searches" => 500.0, "search_time" => 5.0)
-	JLD2.@load "../models/bigger_filter/model_7.jld2" model
+    args = Dict{String, Float64}("C" => 1.41, "num_searches" => 300.0, "search_time" => 3.0)
+	JLD2.@load "../models/bigger_filter/model_15.jld2" model
     #game_against_computer(model, args)
     model1 = model
     model = nothing
