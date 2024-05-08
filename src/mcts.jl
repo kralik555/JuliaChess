@@ -53,7 +53,7 @@ function expand(node::Node, policy)
 			child_state = deepcopy(node.game)
             if ptype(pieceon(node.game.board, from(move))) == PAWN
                 if Chess.rank(to(move)) == RANK_8 || Chess.rank(to(move)) == RANK_1
-                    move = Move(move.from, move.to, QUEEN)
+                    move = Move(from(move), to(move), QUEEN)
                 end
             end
             domove!(child_state, move)

@@ -21,7 +21,7 @@ function test_models(model1::ChessNet, model2::ChessNet, positions_file::String,
     game_num = 0
     for position in positions
         game_num += 1
-        if game_num >= 50
+        if game_num >= 10
             break
         end
         println("Game ", game_num)
@@ -40,6 +40,8 @@ function test_models(model1::ChessNet, model2::ChessNet, positions_file::String,
         else
             model2_wins += 1
         end
+        println("Model 1 wins: ", model1_wins)
+        println("Model 2 wins: ", model2_wins)
     end
     
 	return (model1_wins, draws, model2_wins)
@@ -52,7 +54,7 @@ function play_game(model1::ChessNet, model2::ChessNet, game::SimpleGame, args::D
         println(tostring(move))
         if ptype(pieceon(game.board, from(move))) == PAWN
             if Chess.rank(to(move)) == RANK_8 || Chess.rank(to(move)) == RANK_1
-                move = Move(move.from, move.to, QUEEN)
+                move = Move(from(move), to(move), QUEEN)
             end
         end
         domove!(game, move)
@@ -64,7 +66,7 @@ function play_game(model1::ChessNet, model2::ChessNet, game::SimpleGame, args::D
         println(tostring(move))
         if ptype(pieceon(game.board, from(move))) == PAWN
             if Chess.rank(to(move)) == RANK_8 || Chess.rank(to(move)) == RANK_1
-                move = Move(move.from, move.to, QUEEN)
+                move = Move(from(move), to(move), QUEEN)
             end
         end
         domove!(game, move)
@@ -118,14 +120,15 @@ end
 
 
 if abspath(PROGRAM_FILE) == @__FILE__
-    args = Dict{String, Float64}("C" => 1.41, "num_searches" => 500.0, "search_time" => 7.0)
-	JLD2.@load "../models/no_info_loss/model_10.jld2" model
+    args = Dict{String, Float64}("C" => 0.7, "num_searches" => 500.0, "search_time" => 7.0)
+	JLD2.@load "../models/bigger_filter/model_15.jld2" model
     policy, value = model.model(board_to_tensor(startboard()))
-    #game_against_computer(model, args)
+    game_against_computer(model, args)
     model1 = model
     model = nothing
-    JLD2.@load "../models/bigger_filter/model_15.jld2" model
+    JLD2.@load "../models/no_info_loss/model_10.jld2" model
     model2 = model
+    test_models(model1, model2, "../data/common_games.txt", args)
     board = startboard()
     policy, value = model1.model(board_to_tensor(board))
     for i in 1:4096
