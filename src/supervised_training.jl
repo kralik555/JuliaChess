@@ -13,7 +13,7 @@ include("board_class.jl")
 function train_batch(model::ChessNet, tensors, move_distros, game_values, opt)
 	function loss(x, y_moves, y_value)
 		y_pred_moves, y_pred_value = model.model(x)
- 		move_loss = Flux.kldivergence(y_pred_moves, y_moves)
+ 		move_loss = Flux.crossentropy(y_pred_moves, y_moves)
         value_loss = Flux.mse(y_pred_value, y_value)
 		println("Value loss: ", 40 * value_loss, " Policy loss: ", move_loss)
         return move_loss + 40 * value_loss
@@ -284,13 +284,13 @@ function train_on_created_dataset(model::ChessNet, file_path::String, num_epochs
     states, moves, values = deserialize(file_path)
     l = length(states)
     batch_size = 256
-    for epoch in 1:num_epochs
+    for epoch in 7:num_epochs
         for chunk_num in 0:div(l, batch_size) - 1
             chunk_states = states[chunk_num * batch_size + 1:(chunk_num + 1) * batch_size]
             chunk_moves = moves[chunk_num * batch_size + 1:(chunk_num + 1) * batch_size]
             chunk_values = values[chunk_num * batch_size + 1:(chunk_num + 1) * batch_size]
             model = train_model(model, chunk_states, Float64.(chunk_values), chunk_moves, opt)
-            JLD2.@save "../models/big_models/model_$(epoch).jld2" model
+            JLD2.@save "../models/no_info_loss/model_$(epoch).jld2" model
             println((chunk_num + 1) * batch_size)
         end
     end
@@ -397,7 +397,7 @@ end
 
 if abspath(PROGRAM_FILE) == @__FILE__
 	model = ChessNet()
-    #JLD2.@load "../models/bigger_filter/model_10.jld2" model
+    JLD2.@load "../models/no_info_loss/model_7.jld2" model
     opt = Adam(0.0001)
     train_on_created_dataset(model, "../data/files/evaluated_positions.bin", 20, opt)
 end

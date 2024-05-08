@@ -39,13 +39,11 @@ function training_self_game(model::ChessNet, starting_position::String, args::Di
         push!(arr, (fen(game.board), probs, only(value)))
         push!(pos_arr, fen(game.board))
         println(move)
-        #domove!(game, move)
-        domove!(game, moves(game.board)[3])
+        domove!(game, move)
         if num_moves >= 100
             break
         end
 	end
-    result = 0
     result = game_result(game)
     println(result)
     return arr, result
@@ -166,6 +164,7 @@ function train_batch_sp(model, tensors, policies, values, opt)
 	for (x_batch, y_move_batch, y_value_batch) in data_loader
 		Flux.train!(loss, Flux.params(model.model), [(x_batch, y_move_batch, y_value_batch)], opt)
 	end
+    return model
 end
 
 function train_model_no_tree_games(model, states, correct_policies, correct_values, opt)
@@ -214,7 +213,7 @@ function change_arrays(states, moves, policies, values, result)
     return new_policies, new_values
 end
 
-function self_play_no_tree(model::ChessNet, opt)
+function self_play_no_tree(model::ChessNet, opt, num_models::Int64)
     for game_num in 1:100
         states = Vector{String}()
         played_moves = Vector{Integer}()
@@ -230,16 +229,22 @@ function self_play_no_tree(model::ChessNet, opt)
                 continue
             end
             can_end = false
-            if length(moves(game.board)) == 0
+            if !haslegalmoves(game.board)
+                println("No legal moves, but game not ended!")
                 break
             end
             for m in moves(game.board)
-                undoinfo = domove!(game.board, m)
-                if ischeckmate(game)
+                try
+                    undoinfo = domove!(game.board, m)
+                    if ischeckmate(game)
+                        can_end = true
+                        break
+                    end
+                    undomove!(game.board, undoinfo)
+                catch
+                    println("An error occured!")
                     can_end = true
-                    break
                 end
-                undomove!(game.board, undoinfo)
             end
             if can_end
                 break
@@ -259,7 +264,8 @@ function self_play_no_tree(model::ChessNet, opt)
         result = game_result(game)
         println(result)
         new_policies, new_values = change_arrays(states, played_moves, policies, values, result)
-        train_model_no_tree_games(model, states, new_policies, new_values, opt)
+        model = train_model_no_tree_games(model, states, new_policies, new_values, opt)
+        JLD2.@save "../models/self_play_models/model_$(num_models + 1).jld2" model
     end
     return model
 end
@@ -268,24 +274,25 @@ if abspath(PROGRAM_FILE) == @__FILE__
     saved_models = readdir("../models/self_play_models")
     num_models = size(saved_models)[1]
     model = ChessNet()
-    #JLD2.@load "../models/bigger_filter/model_15.jld2" model
-    if num_models !== 0
+    JLD2.@load "../models/bigger_filter/model_15.jld2" model
+    #=if num_models !== 0
         JLD2.@load "../models/self_play_models/model_$(num_models).jld2" model
+    else
+        model = ChessNet()
     end
-    model = ChessNet()
     arguments = Dict{String, Float64}()
     arguments["num_searches"] = 300.0
     arguments["C"] = 1.41
-    arguments["search_time"] = 2.0
+    arguments["search_time"] = 2.0=#
     model.model(board_to_tensor(startboard()))
     #=for epoch in 1:10
         println("Epoch ", epoch)
         println("===================================")
         self_play_training(model, arguments, "../data/common_games.txt")
     end=#
-    model = ChessNet()
     opt = Adam(0.0001)
     for epoch in 1:1000
-        self_play_no_tree(model, opt)
+        println("Epoch: ", epoch)
+        self_play_no_tree(model, opt, num_models)
     end
 end

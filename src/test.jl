@@ -51,7 +51,7 @@ function play_game(model1::ChessNet, model2::ChessNet, game::SimpleGame, args::D
         move = int_to_move(Int(only(move)))
         println(tostring(move))
         if ptype(pieceon(game.board, from(move))) == PAWN
-            if Chess.rank(to(move)) == 8 || Chess.rank(to(move)) == 1
+            if Chess.rank(to(move)) == RANK_8 || Chess.rank(to(move)) == RANK_1
                 move = Move(move.from, move.to, QUEEN)
             end
         end
@@ -63,14 +63,15 @@ function play_game(model1::ChessNet, model2::ChessNet, game::SimpleGame, args::D
         move = int_to_move(Int(only(move)))
         println(tostring(move))
         if ptype(pieceon(game.board, from(move))) == PAWN
-            if Chess.rank(to(move)) == 8 || Chess.rank(to(move)) == 1
+            if Chess.rank(to(move)) == RANK_8 || Chess.rank(to(move)) == RANK_1
                 move = Move(move.from, move.to, QUEEN)
             end
         end
         domove!(game, move)
     end
-
+    println(gametopgn(game))
     result = game_result(game)
+
     return result
 end
 
@@ -117,12 +118,13 @@ end
 
 
 if abspath(PROGRAM_FILE) == @__FILE__
-    args = Dict{String, Float64}("C" => 1.41, "num_searches" => 300.0, "search_time" => 3.0)
-	JLD2.@load "../models/bigger_filter/model_15.jld2" model
+    args = Dict{String, Float64}("C" => 1.41, "num_searches" => 500.0, "search_time" => 7.0)
+	JLD2.@load "../models/no_info_loss/model_10.jld2" model
+    policy, value = model.model(board_to_tensor(startboard()))
     #game_against_computer(model, args)
     model1 = model
     model = nothing
-    JLD2.@load "../models/dilation_models/model_11.jld2" model
+    JLD2.@load "../models/bigger_filter/model_15.jld2" model
     model2 = model
     board = startboard()
     policy, value = model1.model(board_to_tensor(board))
