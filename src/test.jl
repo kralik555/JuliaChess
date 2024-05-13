@@ -3,6 +3,7 @@ using MKL
 using Chess
 using Flux
 using JLD2
+using Chess.UCI
 include("board_class.jl")
 include("model.jl")
 include("mcts.jl")
@@ -118,11 +119,79 @@ function game_against_computer(model::ChessNet, args)
     println(result)
 end
 
+function stockfish_game(model::ChessNet, stockfish_path::String, game::SimpleGame, args)
+    engine = runengine(stockfish_path)
+    setboard(engine, game.board)
+
+    while !isterminal(game)
+        probs, move, value = tree_move(model, game, args)
+        move = int_to_move(Int(only(move)))
+        domove!(game, move)
+        setboard(engine, game.board)
+        if !(isterminal(game))
+            move = Chess.UCI.search(engine, "go depth 10")
+            domove!(game, move.bestmove)
+        end
+    end
+    result = game_result(game)
+    println(lichessurl(game.board))
+    return result
+end
+
+function stockfish_game(stockfish_path::String, model::ChessNet, game::SimpleGame, args)
+    engine = runengine(stockfish_path)
+    setboard(engine, game.board)
+    while !isterminal(game)
+        move = Chess.UCI.search(engine, "go depth 10")
+        domove!(game, move.bestmove)
+        if !(isterminal(game))
+            probs, move, value = tree_move(model, game, args)
+            move = int_to_move(Int(only(move)))
+            domove!(game, move)
+            setboard(engine, game.board)
+        end
+    end
+    result = game_result(game)
+    println(lichessurl(game.board))
+    return result
+end
+
+function test_against_stockfish(model::ChessNet, args, stockfish_path::String, positions_path::String)
+    model_wins = 0
+    stockfish_wins = 0
+    draws = 0
+    positions = load_most_common(positions_path)
+
+    sth, _ = model.model(board_to_tensor(startboard()))
+    for position in positions[1:50]
+        game = SimpleGame(fromfen(position))
+        result1 = stockfish_game(model, stockfish_path, game, args)
+        if result1 > 0
+            model_wins += 1
+        elseif result1 == 0
+            draws += 1
+        else
+            stockfish_wins += 1
+        end
+        result2 = stockfish_game(stockfish_path, model, game, args)
+        if result2 > 0
+            stockfish_wins += 1
+        elseif result2 == 0
+            draws += 1
+        else
+            model_wins += 1
+        end
+    end
+    return model_wins, stockfish_wins, draws
+end
 
 if abspath(PROGRAM_FILE) == @__FILE__
     args = Dict{String, Float64}("C" => 0.7, "num_searches" => 500.0, "search_time" => 7.0)
-	JLD2.@load "../models/bigger_filter/model_15.jld2" model
+	#JLD2.@load "../models/bigger_filter/model_15.jld2" model
+    model = ChessNet()
     policy, value = model.model(board_to_tensor(startboard()))
+    test_against_stockfish(model, args, "../stockfish/stockfish", "../data/common_games.txt")
+        
     game_against_computer(model, args)
     model1 = model
     model = nothing
