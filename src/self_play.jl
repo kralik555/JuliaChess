@@ -122,8 +122,8 @@ function training_on_games(model::ChessNet, opt=Adam(0.001))
     if size(collect(keys(pos_dict)))[1] > 0
         model = train_model(model, pos_dict)
     end
-    num_models = size(readdir("../models/self_play_models/"))[1]
-    JLD2.@save ("../models/self_play_models/model_$(num_models + 1).jld2") model
+    num_models = size(readdir("../models/"))[1]
+    JLD2.@save ("../models/self_play_model_$(num_models + 1).jld2") model
     rm("temp", recursive=true)
     return model
 end
@@ -213,7 +213,7 @@ function change_arrays(states, moves, policies, values, result)
     return new_policies, new_values
 end
 
-function self_play_no_tree(model::ChessNet, opt, num_models::Int64)
+function self_play_no_tree(model::ChessNet, opt)
     for game_num in 1:100
         states = Vector{String}()
         played_moves = Vector{Integer}()
@@ -265,34 +265,18 @@ function self_play_no_tree(model::ChessNet, opt, num_models::Int64)
         println(result)
         new_policies, new_values = change_arrays(states, played_moves, policies, values, result)
         model = train_model_no_tree_games(model, states, new_policies, new_values, opt)
-        JLD2.@save "../models/self_play_models/model_$(num_models + 1).jld2" model
+        num_models = size(readdir("../models/"))[1]
+        JLD2.@save "../models/self_play_model_$(num_models + 1).jld2" model
     end
     return model
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__
-    saved_models = readdir("../models/self_play_models")
-    num_models = size(saved_models)[1]
     model = ChessNet()
-    JLD2.@load "../models/bigger_filter/model_15.jld2" model
-    #=if num_models !== 0
-        JLD2.@load "../models/self_play_models/model_$(num_models).jld2" model
-    else
-        model = ChessNet()
-    end
-    arguments = Dict{String, Float64}()
-    arguments["num_searches"] = 300.0
-    arguments["C"] = 1.41
-    arguments["search_time"] = 2.0=#
-    model.model(board_to_tensor(startboard()))
-    #=for epoch in 1:10
-        println("Epoch ", epoch)
-        println("===================================")
-        self_play_training(model, arguments, "../data/common_games.txt")
-    end=#
+    JLD2.@load "../models/final_model.jld2" model
     opt = Adam(0.0001)
     for epoch in 1:1000
         println("Epoch: ", epoch)
-        self_play_no_tree(model, opt, num_models)
+        self_play_no_tree(model, opt)
     end
 end

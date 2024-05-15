@@ -103,8 +103,9 @@ end
 function game_against_computer(model::ChessNet, args)
     board = startboard()
     game = SimpleGame(board)
+    println("Enter moves in format e2e4 - move from e2 to e4. For promotion, type b7b8q - change q to any piece you want -- q, r, n, b")
     while !isterminal(game)
-        move_str = readline()
+        move_str = readline("Enter a move: ")
         move = movefromstring(move_str)
         domove!(game, move)
         if !(isterminal(game))
@@ -187,27 +188,9 @@ end
 
 if abspath(PROGRAM_FILE) == @__FILE__
     args = Dict{String, Float64}("C" => 0.7, "num_searches" => 500.0, "search_time" => 7.0)
-	#JLD2.@load "../models/bigger_filter/model_15.jld2" model
     model = ChessNet()
+    JLD2.@load "../models/final_model.jld2" model
     policy, value = model.model(board_to_tensor(startboard()))
-    test_against_stockfish(model, args, "../stockfish/stockfish", "../data/common_games.txt")
         
     game_against_computer(model, args)
-    model1 = model
-    model = nothing
-    JLD2.@load "../models/no_info_loss/model_10.jld2" model
-    model2 = model
-    test_models(model1, model2, "../data/common_games.txt", args)
-    board = startboard()
-    policy, value = model1.model(board_to_tensor(board))
-    for i in 1:4096
-        if int_to_move(i) in moves(startboard())
-            println(int_to_move(i), ": ", policy[i])
-        end
-    end
-    policy, value = model2.model(board_to_tensor(board))
-    result = play_game(model1, model2, SimpleGame(startboard()), args)
-    println(result)
-    result = play_game(model2, model1, SimpleGame(startboard()), args)
-    println(result)
 end

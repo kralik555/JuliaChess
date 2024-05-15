@@ -284,7 +284,7 @@ function train_on_created_dataset(model::ChessNet, file_path::String, num_epochs
     states, moves, values = deserialize(file_path)
     l = length(states)
     batch_size = 256
-    for epoch in 7:num_epochs
+    for epoch in 1:num_epochs
         for chunk_num in 0:div(l, batch_size) - 1
             chunk_states = states[chunk_num * batch_size + 1:(chunk_num + 1) * batch_size]
             chunk_moves = moves[chunk_num * batch_size + 1:(chunk_num + 1) * batch_size]
@@ -397,7 +397,7 @@ end
 
 if abspath(PROGRAM_FILE) == @__FILE__
 	model = ChessNet()
-    JLD2.@load "../models/no_info_loss/model_7.jld2" model
+    JLD2.@load "../models/final_model.jld2" model
     opt = Adam(0.0001)
     train_on_created_dataset(model, "../data/files/evaluated_positions.bin", 20, opt)
 end
